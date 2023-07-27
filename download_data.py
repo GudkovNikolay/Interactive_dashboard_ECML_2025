@@ -1,26 +1,24 @@
-import asyncio
-import aiohttp
-import aiomoex
-import pandas as pd
-
 from pathlib import Path
 
+# Define directories
+DATA_FOLDER = Path('data/')
+CLOSE_FOLDER = DATA_FOLDER / 'close'
 
-async def download_tickers(session: aiohttp.ClientSession) -> list[str]:
-    df = pd.DataFrame(await aiomoex.get_board_securities(session))
-    return df
+# Make directories
+DATA_FOLDER.mkdir(exist_ok=True)
+CLOSE_FOLDER.mkdir(exist_ok=True)
 
 
 async def main():
+    import asyncio
+    import aiohttp
+    import aiomoex
+    import pandas as pd
+
     async with aiohttp.ClientSession() as session:
-        tickers_df = await download_tickers(session)
-
-        data_folder = Path('data/')
-        data_folder.mkdir(exist_ok=True)
-        close_folder = data_folder / 'close'
-        close_folder.mkdir(exist_ok=True)
-
-        tickers_df.to_csv(data_folder / 'tickers.csv', index=False)
+        # Download tickers list
+        tickers_df = pd.DataFrame(await aiomoex.get_board_securities(session))
+        tickers_df.to_csv(DATA_FOLDER / 'tickers.csv', index=False)
 
         tickers = tickers_df['SECID'].tolist()
         n_tickers = len(tickers)
@@ -30,18 +28,21 @@ async def main():
 
         async def download_ticker(ticker: str):
             print(f'Download: {ticker}')
+            ticker_close_df = pd.DataFrame(await aiomoex.get_board_history(session, ticker))
 
-            ticker_close = pd.DataFrame(await aiomoex.get_board_history(session, ticker))
-
-            n_observations = len(ticker_close)
+            # Check non-empty
+            n_observations = len(ticker_close_df)
             assert n_observations != 0, ticker
 
-            ticker_close.to_csv(close_folder / f'{ticker}.csv', index=False)
+            # Save ticker
+            ticker_close_df.to_csv(CLOSE_FOLDER / f'{ticker}.csv', index=False)
 
+            # Log download
             nonlocal success_counter
             success_counter += 1
             print(f'Success ({success_counter} / {n_tickers}): {ticker} - {n_observations} observations')
 
+        # Download all tickers
         await asyncio.gather(*[download_ticker(ticker) for ticker in tickers])
 
 
