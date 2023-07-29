@@ -26,7 +26,7 @@ class Generator(nn.Module):
         super().__init__()
         self.tcn = nn.ModuleList([TemporalBlock(self.NOISE_SIZE, self.HIDDEN_CHANNELS, kernel_size=1, stride=1, dilation=1, padding=0),
                                  *[TemporalBlock(self.HIDDEN_CHANNELS, self.HIDDEN_CHANNELS, kernel_size=2, stride=1, dilation=i, padding=i) for i in [1, 2, 4, 8]]])
-        self.last = nn.Conv1d(10, N_ASSETS, kernel_size=1, stride=1, dilation=1)
+        self.last = nn.Conv1d(self.HIDDEN_CHANNELS, N_ASSETS, kernel_size=1, stride=1, dilation=1)
 
     def forward(self, x):
         skip_layers = []

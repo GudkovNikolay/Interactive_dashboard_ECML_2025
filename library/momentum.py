@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import scipy.stats
 
 from library.constants import N_TRADING_DAYS, CONFIDENCE_INTERVAL, get_shifted_returns
+from tqdm.notebook import tqdm
 
 
 def get_equal_portfolio(tickers: list[str]) -> pd.Series:
@@ -13,12 +14,15 @@ def get_equal_portfolio(tickers: list[str]) -> pd.Series:
     return pd.Series(np.full(len(tickers), 1 / len(tickers)), index=tickers)
 
 
-def get_momentum_signal(df_returns: pd.DataFrame, from_n_days: int, to_n_days: int, from_min_periods: int, to_min_periods) -> pd.DataFrame:
+def get_momentum_signal(df_returns: pd.DataFrame, n_finish: int, n_start: int) -> pd.DataFrame:
     """
     Return equally weighted portfolio
     """
-    from_returns_sum = df_returns.rolling(pd.Timedelta(days=from_n_days), min_periods=from_min_periods).sum()
-    to_returns_sum = df_returns.rolling(pd.Timedelta(days=to_n_days), min_periods=to_min_periods).sum()
+    from_min_periods = 20
+    to_min_periods = 10
+    assert n_finish >= 2 * from_min_periods and n_start >= 2 * to_min_periods
+    from_returns_sum = df_returns.rolling(pd.Timedelta(days=n_finish), min_periods=from_min_periods).sum()
+    to_returns_sum = df_returns.rolling(pd.Timedelta(days=n_start), min_periods=to_min_periods).sum()
     return (from_returns_sum - to_returns_sum)
 
 
@@ -31,7 +35,7 @@ def get_portfolio_from_signal(df_signal: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(df_weights, index=df_signal.index, columns=df_signal.columns)
 
 
-def _get_return_by_rank_from_signal(df_signal: pd.DataFrame, df_returns: pd.DataFrame):
+def _get_return_by_rank_from_signal(df_signal: pd.DataFrame, df_returns: pd.DataFrame, verbose: bool = False):
     """
     Compute returns for each rank
     """
@@ -42,14 +46,16 @@ def _get_return_by_rank_from_signal(df_signal: pd.DataFrame, df_returns: pd.Data
     # Iterate over signal
     result_rows = []
     result_index = []
-    from tqdm.notebook import tqdm
-    for (date, signal) in tqdm(list(df_signal.iterrows())):
+    iterator = df_signal.iterrows()
+    if verbose:
+        iterator = tqdm(list(iterator))
+    for (date, signal) in iterator:
         returns = df_returns.loc[date]
         # Add returns by each rank of signal
         if signal.notna().all() and returns.notna().all():
             result_rows.append(returns.values[np.argsort(signal)])
             result_index.append(date)
-    
+
     # Construct result DataFrame
     df_returns_ranks = pd.DataFrame(result_rows, columns=range(df_returns.shape[1]), index=result_index)
     assert df_returns_ranks.isna().sum().sum() == 0
@@ -64,7 +70,7 @@ def plot_signal_ranks(df_signal: pd.DataFrame, df_returns: pd.DataFrame, title: 
 
     # Get returns by rank (does not contain NaNs)
     df_signal_return_by_rank = _get_return_by_rank_from_signal(df_signal, df_returns)
-    
+
     # Compute Mean returns for each rank and its confidence interval
     mean_returns = df_signal_return_by_rank.mean(axis=0) * N_TRADING_DAYS * 100
     t_score = scipy.stats.t.ppf(1 - (1 - CONFIDENCE_INTERVAL) / 2, len(df_signal_return_by_rank) - 1)

@@ -1,21 +1,13 @@
 # Library
 
+See description in report.
+
 ## download_data.py
 
 ```
 python library/download_data.py
 ```
 
-## constants.py
-
-## correlations.py
-
-## dataset.py
-
-## portfolio.py
-
-## momentum.py
-
-## markowitz.py
-
 # Research
+
+See description in report.
