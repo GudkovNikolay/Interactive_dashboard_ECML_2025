@@ -5,12 +5,12 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
 from torch import nn
-from tqdm.notebook import tqdm
+from timeit import default_timer as timer
 from IPython.display import clear_output
 
 from library.constants import DEVICE, N_ASSETS, WINDOW_SIZE
 from library.correlations import plot_correlation_matrix
-from timeit import default_timer as timer
+from library.generation import generate_samples
 
 SAVE_PATH = Path('models/')
 SAVE_PATH.mkdir(exist_ok=True)
@@ -28,7 +28,8 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
 
     generator_losses = []
     discriminator_losses = []
-    for real_samples in dataloader:  # Iterate over batches of real samples
+    # Iterate over batches of real samples
+    for idx, real_samples in enumerate(dataloader):
         real_samples = real_samples.to(DEVICE)
 
         # Generate fake samples from the generator
@@ -50,40 +51,23 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
         discriminator_loss.backward()
         discriminator_optimizer.step()
 
-        # Train the generator
-        generator_optimizer.zero_grad()
-        # Generate fake samples and compute generator loss
-        fake_samples = generator(z)
-        generator_loss = loss_fn(discriminator(fake_samples), real_labels)
-        generator_loss.backward()
-        generator_optimizer.step()
+        # Clip weights
+        clip = 0.01
+        for dp in discriminator.parameters():
+            dp.data.clamp_(-clip, clip)
+
+        if idx % 2 == 0:
+            # Train the generator
+            generator_optimizer.zero_grad()
+            # Generate fake samples and compute generator loss
+            fake_samples = generator(z)
+            generator_loss = loss_fn(discriminator(fake_samples), real_labels)
+            generator_loss.backward()
+            generator_optimizer.step()
 
         discriminator_losses.append(discriminator_loss.item())
         generator_losses.append(generator_loss.item())
     return np.mean(generator_losses), np.mean(discriminator_losses)
-
-
-@torch.no_grad()
-def generate_samples(generator, assets: list[str], n_samples: int = 1) -> pd.DataFrame | list[pd.DataFrame]:
-    """
-    Generate random samples from generator
-    """
-    generator.eval()
-    # TODO: Shift noise to get one series
-    z = generator.get_noise(n_samples).to(DEVICE)
-    samples = generator(z).cpu()
-    if n_samples == 1:
-        # Return one sample
-        samples = samples.squeeze()
-        assert samples.size() == (N_ASSETS, WINDOW_SIZE)
-        return pd.DataFrame(samples.T, columns=assets)
-    else:
-        # Return multiple samples
-        dfs = []
-        for sample in samples:
-            assert sample.size() == (N_ASSETS, WINDOW_SIZE)
-            dfs.append(pd.DataFrame(sample.T, columns=assets))
-        return dfs
 
 
 @torch.no_grad()
@@ -139,24 +123,30 @@ def plot_gan(generator, assets: list[str], generator_losses: list[float], discri
     plt.show()
 
     # Plot cumulative returns
-    plt.subplots(1, 2, figsize=(15, 5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
 
-    plt.subplot(1, 2, 1)
     plt.title('Real')
     plt.ylabel('Cumulative return')
-    plt.plot(df_returns_real.iloc[:WINDOW_SIZE].cumsum())
+    df_returns_real.iloc[:WINDOW_SIZE].cumsum().plot(ax=ax1)
 
     plt.subplot(1, 2, 2)
     plt.title('Fake')
     plt.ylabel('Cumulative return')
-    plt.plot(df_returns_fake.set_index(df_returns_real.index[:WINDOW_SIZE]).cumsum())
+    df_returns_fake.set_index(df_returns_real.index[:WINDOW_SIZE]).cumsum().plot(ax=ax2)
 
     plt.show()
 
     # Plot losses
-    plt.plot(range(1, epoch + 1), generator_losses, label='generator loss')
-    plt.plot(range(1, epoch + 1), discriminator_losses, label='discriminator loss')
-    plt.legend()
+    plt.subplots(1, 2, figsize=(15, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(range(1, epoch + 1), generator_losses)
+    plt.title('Generator Loss')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(range(1, epoch + 1), discriminator_losses)
+    plt.title('Discriminator Loss')
+
     plt.show()
 
 
@@ -185,7 +175,7 @@ def load_gan(model_prefix: str, generator=None, discriminator=None, generator_op
     assert model_path.exists()
     if epoch is None:
         # Find latest checkpoint
-        files = list(model_path)
+        files = list(model_path.iterdir())
         assert len(files) > 0
         for file in files:
             assert file.name.startswith('checkpoint_')
@@ -199,18 +189,16 @@ def load_gan(model_prefix: str, generator=None, discriminator=None, generator_op
     # Load models
     if generator is not None:
         generator.load_state_dict(checkpoint['generator_state_dict'])
+        generator.eval()
     if discriminator is not None:
         discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
+        discriminator.eval()
 
     # Load optimizers
     if generator_optimizer is not None:
         generator_optimizer.load_state_dict(checkpoint['generator_optimizer_state_dict'])
     if discriminator_optimizer is not None:
         discriminator_optimizer.load_state_dict(checkpoint['discriminator_optimizer_state_dict'])
-
-    # Turn on eval mode
-    discriminator.eval()
-    generator.eval()
 
 
 def train_gan(generator, discriminator, generator_optimizer, discriminator_optimizer, dataloader, df_returns_real: pd.DataFrame, n_epochs: int, log_frequency: int, save_frequency: int, model_prefix: str) -> tuple[list[float], list[float]]:
@@ -238,7 +226,7 @@ def train_gan(generator, discriminator, generator_optimizer, discriminator_optim
             clear_output(wait=True)
             # Log time
             train_time = timer() - start
-            print(f'{log_frequency} train time: {train_time:.1f}s. Estimated train time: {((n_epochs - epoch) * train_time / 60):.1f}m')
+            print(f'{log_frequency} epochs train time: {train_time:.1f}s. Estimated train time: {((n_epochs - epoch) * train_time / log_frequency / 60):.1f}m')
             start = timer()
             # Plot samples
             plot_gan(generator, dataloader.dataset.assets, generator_losses, discriminator_losses,  epoch, df_returns_real)

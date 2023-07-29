@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import scipy.stats
+from dataclasses import dataclass
 
 from library.constants import N_TRADING_DAYS, CONFIDENCE_INTERVAL, get_shifted_returns
 
@@ -41,10 +42,9 @@ def plot_tickers_performance(df_returns: pd.DataFrame):
     plt.show()
 
 
-def print_statistics(w: pd.Series | pd.DataFrame, df_returns: pd.DataFrame):
+def get_returns(w: pd.Series | pd.DataFrame, df_returns: pd.DataFrame) -> pd.DataFrame:
     """
-    Print statistics of the portfolio w
-    Use shifted returns
+    Return returns of the portfolio
     """
 
     # Shift returns
@@ -61,27 +61,56 @@ def print_statistics(w: pd.Series | pd.DataFrame, df_returns: pd.DataFrame):
         returns = (df_returns * w).dropna(axis=0, how='any').sum(axis=1)
     else:
         assert False, 'Unreachable'
-
     # Drop NaNs from returns (for them return or weight is not defined)
-    returns = returns.dropna()
+    return returns.dropna()
 
+
+@dataclass
+class Statistics:
+    mean_return_annual: float
+    std_return_annual: float
+    sharpe_annual: float
+    mean_return_se_annual: float
+
+
+def get_statistics(returns: pd.Series) -> Statistics:
+    """
+    Compute statistics for returns
+    """
     # Compute Annual Return and Sharpe
     mean = returns.mean() * N_TRADING_DAYS
     std = returns.std() * np.sqrt(N_TRADING_DAYS)
     sharpe = mean / std
-    print(f'Annual Return (mean ± std): {mean:.1%} ± {std:.1%}')
-    print(f'Sharpe: {sharpe:.2f}')
-    print()
 
     # Compute confidence interval for Mean Annual Return
-    mean_estimation = returns.mean() * N_TRADING_DAYS
     mean_error_estimation = returns.sem() * N_TRADING_DAYS
     t_score = scipy.stats.t.ppf(1 - (1 - CONFIDENCE_INTERVAL) / 2, len(returns) - 1)
-    print(f'Annual Mean Return {CONFIDENCE_INTERVAL:.0%} confidence interval: {mean_estimation:.2%}±{mean_error_estimation * t_score:.2%}')
 
-    # Plot cumulative returns
+    # Return statistics
+    return Statistics(
+        mean_return_annual=mean,
+        std_return_annual=std,
+        sharpe_annual=sharpe,
+        mean_return_se_annual=mean_error_estimation * t_score
+    )
+
+
+def print_statistics(returns: pd.Series):
+    """
+    Print statistics of the portfolio w
+    """
+    # Get returns and statistics
+    stat = get_statistics(returns)
+
+    # Print statistics
+    print(f'Annual Return (mean ± std): {stat.mean_return_annual:.1%} ± {stat.std_return_annual:.1%}')
+    print(f'Sharpe: {stat.sharpe_annual:.2f}')
+    print(f'Annual Mean Return {CONFIDENCE_INTERVAL:.0%} confidence interval: {stat.mean_return_annual:.2%}±{stat.mean_return_se_annual:.2%}')
+
+
+def plot_cumulative_returns(returns: pd.Series, title: str):
     plt.figure(figsize=(12, 6))
     plt.plot(returns.cumsum())
-    plt.title('Cumulative log-returns')
+    plt.title(title)
     plt.ylabel('Cumulative log-return')
     plt.show()

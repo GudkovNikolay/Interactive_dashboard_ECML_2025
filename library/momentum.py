@@ -42,7 +42,8 @@ def _get_return_by_rank_from_signal(df_signal: pd.DataFrame, df_returns: pd.Data
     # Iterate over signal
     result_rows = []
     result_index = []
-    for (date, signal) in df_signal.iterrows():
+    from tqdm.notebook import tqdm
+    for (date, signal) in tqdm(list(df_signal.iterrows())):
         returns = df_returns.loc[date]
         # Add returns by each rank of signal
         if signal.notna().all() and returns.notna().all():

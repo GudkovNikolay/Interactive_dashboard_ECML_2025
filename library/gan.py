@@ -43,6 +43,22 @@ class Generator(nn.Module):
         """
         return torch.randn(batch_size, cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE)
 
+    @classmethod
+    def get_shifted_noise(cls, batch_size: int) -> torch.tensor:
+        """
+        (batch_size, noise_size, window_size)
+        Each observation in batch contains last values from previous batch and new value
+        """
+        if batch_size == 1:
+            return cls.get_noise(batch_size)
+
+        # Generate base noise
+        noise = torch.randn(cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE + batch_size - 1)
+        result = torch.zeros(batch_size, cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE)
+        for i in range(batch_size):
+            result[i] = noise[:, i:i + cls.NOISE_WINDOW_SIZE]
+        return result
+
 
 class Discriminator(nn.Module):
     """
