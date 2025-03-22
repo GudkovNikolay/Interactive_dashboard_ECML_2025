@@ -1,14 +1,12 @@
 from bokeh.plotting import figure, curdoc
 from bokeh.layouts import column, row
-from bokeh.models import Button, TextInput, Paragraph, ColumnDataSource, Whisker, Range1d, Select, Label
+from bokeh.models import Button, Paragraph, Select, Label
 import numpy as np
 import pandas as pd
-import pickle
-from scipy.linalg import sqrtm
 from fid import calculate_fid
 from bokeh.driving import linear
 
-from sharp_ratio import sharp_grid
+from dashboard.sharp_ratio import sharp_grid
     
 # Функция для загрузки данных из CSV-файла
 def load_data(file_path):
