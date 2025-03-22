@@ -8,9 +8,9 @@ from torch import nn
 from timeit import default_timer as timer
 from IPython.display import clear_output
 
-from library.constants import DEVICE, N_ASSETS, WINDOW_SIZE
-from library.correlations import plot_correlation_matrix
-from library.generation import generate_samples
+from constants import DEVICE, N_ASSETS, WINDOW_SIZE
+from correlations import plot_correlation_matrix
+from generation import generate_samples
 
 SAVE_PATH = Path('models/')
 SAVE_PATH.mkdir(exist_ok=True)
@@ -69,7 +69,7 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
         generator_losses.append(generator_loss.item())
     return np.mean(generator_losses), np.mean(discriminator_losses)
 
-
+# TODO добавить ошибку корреляций
 @torch.no_grad()
 def plot_gan(generator, assets: list[str], generator_losses: list[float], discriminator_losses: list[float], epoch: int, df_returns_real: pd.DataFrame):
     """
@@ -200,6 +200,40 @@ def load_gan(model_prefix: str, generator=None, discriminator=None, generator_op
     if discriminator_optimizer is not None:
         discriminator_optimizer.load_state_dict(checkpoint['discriminator_optimizer_state_dict'])
 
+def load_maksim_gan(model_prefix: str, generator=None, discriminator=None, generator_optimizer=None, discriminator_optimizer=None, epoch: int | None = None):
+    """
+    Load GAN checkpoint
+    Load only models that are not None
+    Load latest epoch if not specified
+    """
+    model_path = SAVE_PATH / model_prefix
+    assert model_path.exists()
+    if epoch is None:
+        # Find latest checkpoint
+        files = list(model_path.iterdir())
+        assert len(files) > 0
+        for file in files:
+            assert file.name.startswith('checkpoint_')
+        epochs = [int(file.name.removeprefix('checkpoint_')) for file in files]
+        epoch = max(epochs)
+
+    print(f'Load {epoch} epoch checkpoint')
+    checkpoint = torch.load(model_path / f'maksim_checkpoint_{epoch}')
+    assert checkpoint['epoch'] == epoch
+
+    # Load models
+    if generator is not None:
+        generator.load_state_dict(checkpoint['generator_state_dict'])
+        generator.eval()
+    if discriminator is not None:
+        discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
+        discriminator.eval()
+
+    # Load optimizers
+    if generator_optimizer is not None:
+        generator_optimizer.load_state_dict(checkpoint['generator_optimizer_state_dict'])
+    if discriminator_optimizer is not None:
+        discriminator_optimizer.load_state_dict(checkpoint['discriminator_optimizer_state_dict'])
 
 def train_gan(generator, discriminator, generator_optimizer, discriminator_optimizer, dataloader, df_returns_real: pd.DataFrame, n_epochs: int, log_frequency: int, save_frequency: int, model_prefix: str) -> tuple[list[float], list[float]]:
     """
