@@ -4,8 +4,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-from library.download_data import DATA_FOLDER, CLOSE_FOLDER
-from library.constants import N_ASSETS, WINDOW_SIZE, BATCH_SIZE
+from download_data import DATA_FOLDER, CLOSE_FOLDER
+from constants import N_ASSETS, WINDOW_SIZE, BATCH_SIZE
 
 
 def get_prices(n_assets: int = N_ASSETS) -> pd.DataFrame:
@@ -35,10 +35,15 @@ def get_prices(n_assets: int = N_ASSETS) -> pd.DataFrame:
     # Choose tickers with the longest history
     chosen_tickers = df.notna().sum().sort_values().index[:-n_assets - 1:-1].tolist()
     print(f'Chosen tickers: {chosen_tickers}')
+
+    # берем период, аналогичный Максимовскому
+    df = df[df.index <= '2023-07-21']
+
     print(f'Length before dropping NaNs: {len(df)}')
     # Drop NaNs
     df = df[chosen_tickers].dropna()
     print(f'Length after dropping NaNs: {len(df)}')
+
     return df
 
 
