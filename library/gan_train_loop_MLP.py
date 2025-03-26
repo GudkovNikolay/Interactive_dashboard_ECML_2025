@@ -7,6 +7,7 @@ from pathlib import Path
 from torch import nn
 from timeit import default_timer as timer
 from IPython.display import clear_output
+from tqdm.auto import tqdm
 
 from constants import DEVICE, N_ASSETS, WINDOW_SIZE
 from correlations import plot_correlation_matrix
@@ -219,7 +220,7 @@ def train_gan(generator, discriminator, generator_optimizer, discriminator_optim
     generator_losses = []
     discriminator_losses = []
 
-    for epoch in range(1, n_epochs + 1):
+    for epoch in tqdm(range(1, n_epochs + 1)):
         # Train one epoch
         generator_loss, discriminator_loss = train_epoch(generator, discriminator, generator_optimizer, discriminator_optimizer, dataloader)
 
@@ -230,7 +231,7 @@ def train_gan(generator, discriminator, generator_optimizer, discriminator_optim
         # Plot samples
         if epoch % log_frequency == 0 or epoch == n_epochs:
             # Clear output
-            clear_output(wait=True)
+            # clear_output(wait=True)
             # Log time
             train_time = timer() - start
             print(f'{log_frequency} epochs train time: {train_time:.1f}s. Estimated train time: {((n_epochs - epoch) * train_time / log_frequency / 60):.1f}m')

@@ -14,21 +14,23 @@ from constants import WINDOW_SIZE, N_ASSETS
 
 class Generator(nn.Module):
     """
-    Generator: 3 to 1 Causal temporal convolutional network with skip connections.
-    This network uses 1D convolutions in order to model multiple timeseries co-dependency.
+    Generator: mlp architecture
     """
 
     # Define noise size
     NOISE_WINDOW_SIZE = WINDOW_SIZE
-    NOISE_SIZE = N_ASSETS
+    NOISE_SIZE = NOISE_WINDOW_SIZE * 10
 
     # Define number of hidden channels
     HIDDEN_CHANNELS = 100
 
     def __init__(self):
         super().__init__()
-        self.mlp = MLP(WINDOW_SIZE * N_ASSETS, [Generator.HIDDEN_CHANNELS, Generator.HIDDEN_CHANNELS, Generator.HIDDEN_CHANNELS, Generator.HIDDEN_CHANNELS], WINDOW_SIZE * N_ASSETS)
-        # self.last = nn.Conv1d(self.HIDDEN_CHANNELS, N_ASSETS, kernel_size=1, stride=1, dilation=1)
+        self.mlp = MLP(
+            Generator.NOISE_SIZE,
+            [Generator.HIDDEN_CHANNELS, Generator.HIDDEN_CHANNELS, Generator.HIDDEN_CHANNELS, Generator.HIDDEN_CHANNELS],
+            WINDOW_SIZE * N_ASSETS
+        )
 
     def forward(self, x):
         return self.mlp(x)
@@ -38,7 +40,7 @@ class Generator(nn.Module):
         """
         (batch_size, noise_size, window_size)
         """
-        return torch.randn(batch_size, cls.NOISE_SIZE * cls.NOISE_WINDOW_SIZE)
+        return torch.randn(batch_size, cls.NOISE_SIZE)
 
     @classmethod
     def get_shifted_noise(cls, batch_size: int) -> torch.tensor:
