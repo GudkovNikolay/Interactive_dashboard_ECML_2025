@@ -2,9 +2,7 @@ import torch
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-
 from constants import DEVICE, N_ASSETS, WINDOW_SIZE
-
 
 @torch.no_grad()
 def generate_samples(generator, assets: list[str], n_samples: int = 1) -> pd.DataFrame | list[pd.DataFrame]:
