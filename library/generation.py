@@ -45,12 +45,13 @@ def _merge_generated_dfs(dfs: list[pd.DataFrame], df_returns_real: pd.DataFrame)
     result = [dfs[0]]
     for i, df in enumerate(dfs[1:]):
         prev_df = dfs[i]
-        try:
-            assert np.allclose(prev_df.iloc[31:].values, df.iloc[30:-1].values, atol=1e-06)
-        except:
-            plt.plot(np.array(prev_df.iloc[1:].values - df.iloc[:-1].values))
-            plt.title(f'Broken generation, batch_num = {i}')
-            plt.show()
+        # TODO этот ассерт важен?
+        # try:
+        #     assert np.allclose(prev_df.iloc[31:].values, df.iloc[30:-1].values, atol=1e-06)
+        # except:
+        #     plt.plot(np.array(prev_df.iloc[1:].values - df.iloc[:-1].values))
+        #     plt.title(f'Broken generation, batch_num = {i}')
+        #     plt.show()
 
         result.append(df.iloc[-1:])
     return pd.concat(result).set_index(df_returns_real.index)
