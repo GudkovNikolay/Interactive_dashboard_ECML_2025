@@ -59,6 +59,7 @@ def get_log_returns(df_prices: pd.DataFrame) -> pd.DataFrame:
 class ReturnsDataset(Dataset):
     """
     PyTorch dataset with log-returns
+    В каждом следующем батче данные из предыдщего - первое значение ушло, последнее пришло
     """
 
     def __init__(self, df_returns: pd.DataFrame, window_size: int):
