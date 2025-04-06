@@ -30,9 +30,15 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
 
     generator_losses = []
     discriminator_losses = []
+    discriminator_losses_real = []
+    discriminator_losses_fake = []
 
     # Iterate over batches of real samples
     for idx, real_samples in enumerate(dataloader):
+        # print(real_samples[0].mean(), real_samples[0].std(), torch.mean(discriminator(real_samples)))
+        #
+        # plt.plot(torch.transpose(real_samples[0], 0, 1))
+        # plt.show()
         real_samples = real_samples.to(DEVICE)
 
         # Generate fake samples from the generator
@@ -40,17 +46,24 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
         z = generator.get_noise(real_samples.shape[0]).to(DEVICE)
         with torch.no_grad():
             fake_samples = generator(z)
+
+        # plt.plot(torch.transpose(fake_samples[0], 0, 1))
+        # plt.show()
+
         real_labels = torch.ones(real_samples.shape[0]).to(DEVICE)
         fake_labels = torch.zeros(real_samples.shape[0]).to(DEVICE)
+
 
         # Train the discriminator
         discriminator_optimizer.zero_grad()
         # Compute discriminator loss on real samples
         real_loss = loss_fn(discriminator(real_samples), real_labels)
+        discriminator_losses_real.append(real_loss.detach().numpy())
         # Compute discriminator loss on fake samples
         fake_loss = loss_fn(discriminator(fake_samples), fake_labels)
         # Compute the total discriminator loss
         discriminator_loss = real_loss + fake_loss
+        # if idx <= 50:
         discriminator_loss.backward()
         discriminator_optimizer.step()
 
@@ -59,6 +72,7 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
         for dp in discriminator.parameters():
             dp.data.clamp_(-clip, clip)
 
+        #TODO пытаюсь решить проблему с тем, что дискриминатор не робит
         if idx % 2 == 0:
             # Train the generator
             generator_optimizer.zero_grad()
@@ -70,10 +84,10 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
 
         discriminator_losses.append(discriminator_loss.item())
         generator_losses.append(generator_loss.item())
-    corr_loss = np.mean(np.corrcoef(fake_samples[-1]) - np.corrcoef(real_samples[-1]))#generate_samples(generator, dataloader.dataset.assets).corr()
-    return np.mean(generator_losses), np.mean(discriminator_losses), corr_loss
+    # corr_loss = np.mean(np.corrcoef(fake_samples[-1].detach().numpy()) - np.corrcoef(real_samples[-1]))#generate_samples(generator, dataloader.dataset.assets).corr()
+    return np.mean(generator_losses), np.mean(discriminator_losses_real), np.mean(discriminator_losses)
 
-# TODO добавить ошибку корреляций
+
 @torch.no_grad()
 def plot_gan(generator, assets: list[str], generator_losses: list[float], discriminator_losses: list[float], corr_losses: list[float], epoch: int, df_returns_real: pd.DataFrame):
     """
@@ -122,7 +136,7 @@ def plot_gan(generator, assets: list[str], generator_losses: list[float], discri
     sorted_labels = plot_correlation_matrix(df_returns_real.corr())
 
     plt.subplot(1, 2, 2)
-    plt.title('Fake')
+    plt.title(f'Fake. Diff with real = {round(np.mean(df_returns_fake.corr() - df_returns_real.corr()), 2)}')
     plot_correlation_matrix(df_returns_fake.corr(), sorted_labels)
 
     plt.show()
@@ -172,7 +186,7 @@ def save_gan(generator, discriminator, generator_optimizer, discriminator_optimi
         'discriminator_state_dict': discriminator.state_dict(),
         'generator_optimizer_state_dict': generator_optimizer.state_dict(),
         'discriminator_optimizer_state_dict': discriminator_optimizer.state_dict(),
-    }, model_path / f'checkpoint_{epoch}')
+    }, model_path / f'checkpoint_{epoch}_{generator.kernel_size}')
 
 
 def load_gan(model_prefix: str, generator=None, discriminator=None, generator_optimizer=None, discriminator_optimizer=None, epoch: int | None = None):
@@ -192,43 +206,9 @@ def load_gan(model_prefix: str, generator=None, discriminator=None, generator_op
         epochs = [int(file.name.removeprefix('checkpoint_')) for file in files]
         epoch = max(epochs)
 
-    print(f'Load {epoch} epoch checkpoint')
-    checkpoint = torch.load(model_path / f'checkpoint_{epoch}')
-    assert checkpoint['epoch'] == epoch
-
-    # Load models
-    if generator is not None:
-        generator.load_state_dict(checkpoint['generator_state_dict'])
-        generator.eval()
-    if discriminator is not None:
-        discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
-        discriminator.eval()
-
-    # Load optimizers
-    if generator_optimizer is not None:
-        generator_optimizer.load_state_dict(checkpoint['generator_optimizer_state_dict'])
-    if discriminator_optimizer is not None:
-        discriminator_optimizer.load_state_dict(checkpoint['discriminator_optimizer_state_dict'])
-
-def load_maksim_gan(model_prefix: str, generator=None, discriminator=None, generator_optimizer=None, discriminator_optimizer=None, epoch: int | None = None):
-    """
-    Load GAN checkpoint
-    Load only models that are not None
-    Load latest epoch if not specified
-    """
-    model_path = SAVE_PATH / model_prefix
-    assert model_path.exists()
-    if epoch is None:
-        # Find latest checkpoint
-        files = list(model_path.iterdir())
-        assert len(files) > 0
-        for file in files:
-            assert file.name.startswith('checkpoint_')
-        epochs = [int(file.name.removeprefix('checkpoint_')) for file in files]
-        epoch = max(epochs)
-
-    print(f'Load {epoch} epoch checkpoint')
-    checkpoint = torch.load(model_path / f'maksim_checkpoint_{epoch}')
+    print(f'Load {epoch} epoch and {generator.kernel_size} kernek_size checkpoint')
+    filename = model_path / f'checkpoint_{epoch}_{generator.kernel_size}'
+    checkpoint = torch.load(filename)
     assert checkpoint['epoch'] == epoch
 
     # Load models
@@ -260,7 +240,6 @@ def train_gan(generator, discriminator, generator_optimizer, discriminator_optim
     for epoch in tqdm(range(1, n_epochs + 1)):
         # Train one epoch
         generator_loss, discriminator_loss, avg_corr = train_epoch(generator, discriminator, generator_optimizer, discriminator_optimizer, dataloader)
-
         # Store losses
         generator_losses.append(generator_loss)
         discriminator_losses.append(discriminator_loss)

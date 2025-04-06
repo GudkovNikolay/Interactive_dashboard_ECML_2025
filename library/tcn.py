@@ -8,12 +8,16 @@ from torch.nn.utils import weight_norm
 
 
 class Chomp1d(nn.Module):
-    def __init__(self, chomp_size):
+    def __init__(self, chomp_size, kernel_size):
         super(Chomp1d, self).__init__()
         self.chomp_size = chomp_size
+        self.kernel_size = kernel_size
 
     def forward(self, x):
-        return x[:, :, :-self.chomp_size].contiguous()
+        if self.kernel_size == 2:
+            return x[:, :, :-self.chomp_size].contiguous()
+        else:
+            return x[:, :, :].contiguous()
 
 
 class TemporalBlock(nn.Module):
@@ -31,13 +35,16 @@ class TemporalBlock(nn.Module):
 
     def __init__(self, n_inputs, n_outputs, kernel_size, stride, dilation, padding, dropout=0.2):
         super(TemporalBlock, self).__init__()
+        self.dilation = dilation
+        self.padding = padding
+        self.kernel_size = kernel_size
         self.conv1 = weight_norm(nn.Conv1d(n_inputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation))
-        self.chomp1 = Chomp1d(padding)
+        self.chomp1 = Chomp1d(padding, self.kernel_size)
         self.relu1 = nn.ReLU()
         self.dropout1 = nn.Dropout(dropout)
 
         self.conv2 = weight_norm(nn.Conv1d(n_outputs, n_outputs, kernel_size, stride=stride, padding=padding, dilation=dilation))
-        self.chomp2 = Chomp1d(padding)
+        self.chomp2 = Chomp1d(padding, self.kernel_size)
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout(dropout)
 
@@ -59,4 +66,5 @@ class TemporalBlock(nn.Module):
     def forward(self, x):
         out = self.net(x)
         res = x if self.downsample is None else self.downsample(x)
+        # print(self.kernel_size, self.dilation, self.padding)
         return out, self.relu(out + res)
