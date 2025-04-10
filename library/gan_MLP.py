@@ -4,7 +4,7 @@ from torch import nn
 
 from MLP import MLP
 from tcn import TemporalBlock
-from constants import WINDOW_SIZE, N_ASSETS
+fromlibrary.constants import WINDOW_SIZE, N_ASSETS
 # from tcn import TemporalBlock
 
 ###################################################################################

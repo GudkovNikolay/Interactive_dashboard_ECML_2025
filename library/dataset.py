@@ -4,8 +4,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-from download_data import DATA_FOLDER, CLOSE_FOLDER
-from constants import N_ASSETS, WINDOW_SIZE, BATCH_SIZE
+from library.download_data import DATA_FOLDER, CLOSE_FOLDER
+from library.constants import N_ASSETS, WINDOW_SIZE, BATCH_SIZE
 
 
 def get_prices(n_assets: int = N_ASSETS) -> pd.DataFrame:
@@ -14,6 +14,7 @@ def get_prices(n_assets: int = N_ASSETS) -> pd.DataFrame:
     """
     # Check that data exists
     tickers_file = DATA_FOLDER / 'tickers.csv'
+    # print('AAAAAAA', DATA_FOLDER, DATA_FOLDER.exists())
     assert DATA_FOLDER.exists() and CLOSE_FOLDER.exists() and tickers_file.exists()
 
     # Read tickers list

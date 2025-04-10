@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from constants import WINDOW_SIZE, N_ASSETS
+from library.constants import WINDOW_SIZE, N_ASSETS
 from tcn import TemporalBlock
 
 class Generator(nn.Module):

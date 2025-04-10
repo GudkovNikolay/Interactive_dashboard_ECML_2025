@@ -9,6 +9,12 @@ from bokeh.palettes import Viridis256
 from bokeh.transform import transform
 from bokeh.models.ranges import Range1d
 
+from library.constants import DEVICE
+from library.dataset import get_pytorch_datataset
+from library.gan import Generator
+from library.gan_train_loop import load_gan
+from library.generation import generate_fake_returns
+
 # Constants
 N_POINTS = 100
 N_PROCESSES = 5
@@ -17,7 +23,10 @@ HEATMAP_SIZE = 10
 # Generate fixed real Wiener processes
 np.random.seed(42)
 x = np.linspace(0, 1, N_POINTS)
-real_processes = np.cumsum(np.random.randn(N_PROCESSES, N_POINTS), axis=1)
+df_returns_real = get_pytorch_datataset()[0].cumsum()
+real_processes = np.array(df_returns_real).transpose()
+print(real_processes[0])
+# real_processes = np.cumsum(np.random.randn(N_PROCESSES, N_POINTS), axis=1)
 
 # Generate different generated processes for each architecture
 architectures = ['TCN', 'MLP', 'LSTM', 'GRU']
@@ -25,6 +34,13 @@ generated_processes = {
     arch: np.cumsum(np.random.randn(N_PROCESSES, N_POINTS), axis=1) 
     for arch in architectures
 }
+
+generator = Generator().to(DEVICE)
+load_gan('TCN', generator, epoch=800)
+
+df_returns_fake = generate_fake_returns(generator, df_returns_real, seed=0).cumsum()
+
+generated_processes['TCN'] = np.array(df_returns_fake).transpose()
 
 # Generate strategy returns for the bottom plot
 train_returns = np.cumsum(np.random.randn(N_POINTS))
@@ -138,7 +154,7 @@ def create_heatmap(title, source):
         title=title, 
         width=300, 
         height=300,
-        x_range=Range1d(0, HEATMAP_SIZE, bounds='auto'), 
+        x_range=Range1d(0, HEATMAP_SIZE, bounds='auto'),
         y_range=Range1d(0, HEATMAP_SIZE, bounds='auto'),
         tools="",
         toolbar_location=None

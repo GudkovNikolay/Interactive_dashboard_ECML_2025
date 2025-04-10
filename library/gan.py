@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from constants import WINDOW_SIZE, N_ASSETS
-from tcn import TemporalBlock
+from library.constants import WINDOW_SIZE, N_ASSETS
+from library.tcn import TemporalBlock
 
 ###################################################################################
 # Noise function

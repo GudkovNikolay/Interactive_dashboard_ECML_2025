@@ -8,9 +8,9 @@ from torch import nn
 from timeit import default_timer as timer
 from IPython.display import clear_output
 
-from constants import DEVICE, N_ASSETS, WINDOW_SIZE
-from correlations import plot_correlation_matrix
-from generation import generate_samples, _normalize_returns
+from library.constants import DEVICE, N_ASSETS, WINDOW_SIZE
+from library.correlations import plot_correlation_matrix
+from library.generation import generate_samples, _normalize_returns
 
 from tqdm.auto import tqdm
 
