@@ -9,7 +9,7 @@ from timeit import default_timer as timer
 from IPython.display import clear_output
 from tqdm.auto import tqdm
 
-fromlibrary.constants import DEVICE, N_ASSETS, WINDOW_SIZE
+from library.constants import DEVICE, N_ASSETS, WINDOW_SIZE
 from correlations import plot_correlation_matrix
 from generation_LSTM import generate_samples
 

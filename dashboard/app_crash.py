@@ -8,6 +8,7 @@ from bokeh.plotting import figure
 from bokeh.palettes import Viridis256
 from bokeh.transform import transform
 from bokeh.models.ranges import Range1d
+from matplotlib import pyplot as plt
 
 from library.constants import DEVICE
 from library.dataset import get_pytorch_datataset
@@ -22,10 +23,10 @@ HEATMAP_SIZE = 10
 
 # Generate fixed real Wiener processes
 np.random.seed(42)
-x = np.linspace(0, 1, N_POINTS)
-df_returns_real = get_pytorch_datataset()[0].cumsum()
-real_processes = np.array(df_returns_real).transpose()
-print(real_processes[0])
+df_returns_real = get_pytorch_datataset()[0]
+real_processes = np.array(df_returns_real.cumsum()).transpose()
+
+
 # real_processes = np.cumsum(np.random.randn(N_PROCESSES, N_POINTS), axis=1)
 
 # Generate different generated processes for each architecture
@@ -35,12 +36,21 @@ generated_processes = {
     for arch in architectures
 }
 
-generator = Generator().to(DEVICE)
+generator = Generator(2).to(DEVICE)
 load_gan('TCN', generator, epoch=800)
 
-df_returns_fake = generate_fake_returns(generator, df_returns_real, seed=0).cumsum()
+df_returns_fake = generate_fake_returns(generator, df_returns_real, seed=0)
+x = df_returns_fake.index
+# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+#
+# plt.subplot(2, 1, 1)
 
-generated_processes['TCN'] = np.array(df_returns_fake).transpose()
+# df_returns_fake.cumsum().plot(ax=ax2)
+# plt.title('Fake')
+# plt.ylabel('Cumulative log-returns')
+# plt.show()
+
+generated_processes['TCN'] = np.array(df_returns_fake.cumsum()).transpose()
 
 # Generate strategy returns for the bottom plot
 train_returns = np.cumsum(np.random.randn(N_POINTS))
@@ -134,16 +144,25 @@ def create_param_display(text):
 
 
 # Create plots with fixed size and no stretching
+
 def create_stock_plot(title, source):
     p = figure(
         title=title,
         width=400,
         height=300,
         tools="",
-        toolbar_location=None
+        toolbar_location=None,
+        x_axis_type='datetime',  # Можно указать "datetime" если время
     )
+
+    # Настройка внешнего вида оси X
+    p.xaxis.axis_label_text_font_style = "normal"
+    p.xaxis.axis_label_text_font_size = "12pt"
+
+    # Добавление линий для каждого процесса
     for i in range(N_PROCESSES):
         p.line('x', f'y{i}', source=source, line_width=2)
+
     return p
 
 

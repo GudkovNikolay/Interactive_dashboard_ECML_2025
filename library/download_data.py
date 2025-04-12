@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 
 # Define directories
-DATA_FOLDER = Path('library/data/')
+DATA_FOLDER = Path('data/')
 CLOSE_FOLDER = DATA_FOLDER / 'close'
 
 # Make directories

@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats
 
-fromlibrary.constants import N_TRADING_DAYS, CONFIDENCE_INTERVAL, get_shifted_returns
+from library.constants import N_TRADING_DAYS, CONFIDENCE_INTERVAL, get_shifted_returns
 from tqdm.notebook import tqdm
 
 

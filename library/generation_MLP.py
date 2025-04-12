@@ -2,7 +2,7 @@ import torch
 import pandas as pd
 import numpy as np
 
-fromlibrary.constants import DEVICE, N_ASSETS, WINDOW_SIZE
+from library.constants import DEVICE, N_ASSETS, WINDOW_SIZE
 
 
 @torch.no_grad()
