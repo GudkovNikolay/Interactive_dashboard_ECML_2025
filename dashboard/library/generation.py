@@ -1,9 +1,8 @@
 import torch
 import pandas as pd
 import numpy as np
-
+from matplotlib import pyplot as plt
 from library.constants import DEVICE, N_ASSETS, WINDOW_SIZE
-
 
 @torch.no_grad()
 def generate_samples(generator, assets: list[str], n_samples: int = 1) -> pd.DataFrame | list[pd.DataFrame]:
@@ -14,20 +13,17 @@ def generate_samples(generator, assets: list[str], n_samples: int = 1) -> pd.Dat
     generator.eval()
     z = generator.get_shifted_noise(n_samples).to(DEVICE)
     samples = generator(z).cpu()
-    print(n_samples, samples.shape)
     if n_samples == 1:
         # Return one sample
-        samples = samples.squeeze().reshape(N_ASSETS, WINDOW_SIZE)
+        samples = samples.squeeze()
         assert samples.size() == (N_ASSETS, WINDOW_SIZE)
         return pd.DataFrame(samples.T, columns=assets)
     else:
-        # Return multiple sample
+        # Return multiple samples
         dfs = []
-        samples = samples.reshape(n_samples, N_ASSETS, WINDOW_SIZE)
         for sample in samples:
             assert sample.size() == (N_ASSETS, WINDOW_SIZE)
             dfs.append(pd.DataFrame(sample.T, columns=assets))
-        print(len(dfs))
         return dfs
 
 
@@ -37,7 +33,6 @@ def generate_fake_returns(generator, df_returns_real: pd.DataFrame, seed: int) -
     dfs = generate_samples(generator, df_returns_real.columns, len(df_returns_real) - WINDOW_SIZE + 1)
     # Merge generated DataFrames
     df_returns_fake = _merge_generated_dfs(dfs, df_returns_real)
-    print('shape after merg', df_returns_fake.shape)
     # Normalize fake returns
     df_returns_fake = _normalize_returns(df_returns_fake, df_returns_real)
     return df_returns_fake
@@ -50,7 +45,14 @@ def _merge_generated_dfs(dfs: list[pd.DataFrame], df_returns_real: pd.DataFrame)
     result = [dfs[0]]
     for i, df in enumerate(dfs[1:]):
         prev_df = dfs[i]
-        # assert np.allclose(prev_df.iloc[31:].values, df.iloc[30:-1].values), f'{(~np.isclose(prev_df.iloc[30:].values, df.iloc[29:-1].values)).sum(), }'
+        # TODO этот ассерт важен?
+        # try:
+        #     assert np.allclose(prev_df.iloc[31:].values, df.iloc[30:-1].values, atol=1e-06)
+        # except:
+        #     plt.plot(np.array(prev_df.iloc[1:].values - df.iloc[:-1].values))
+        #     plt.title(f'Broken generation, batch_num = {i}')
+        #     plt.show()
+
         result.append(df.iloc[-1:])
     return pd.concat(result).set_index(df_returns_real.index)
 

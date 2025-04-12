@@ -1,11 +1,8 @@
-import numpy as np
 import torch
 from torch import nn
 
-from MLP import MLP
-from tcn import TemporalBlock
 from library.constants import WINDOW_SIZE, N_ASSETS
-# from tcn import TemporalBlock
+from library.tcn import TemporalBlock
 
 ###################################################################################
 # Noise function
@@ -14,33 +11,38 @@ from library.constants import WINDOW_SIZE, N_ASSETS
 
 class Generator(nn.Module):
     """
-    Generator: mlp architecture
+    Generator: 3 to 1 Causal temporal convolutional network with skip connections.
+    This network uses 1D convolutions in order to model multiple timeseries co-dependency.
     """
 
     # Define noise size
     NOISE_WINDOW_SIZE = WINDOW_SIZE
-    NOISE_SIZE = NOISE_WINDOW_SIZE * 10
+    NOISE_SIZE = N_ASSETS * 3
 
     # Define number of hidden channels
-    HIDDEN_CHANNELS = 100
+    HIDDEN_CHANNELS = 10
 
-    def __init__(self):
+    def __init__(self, kernel_size=2):
         super().__init__()
-        self.mlp = MLP(
-            Generator.NOISE_SIZE,
-            [Generator.HIDDEN_CHANNELS, Generator.HIDDEN_CHANNELS, Generator.HIDDEN_CHANNELS, Generator.HIDDEN_CHANNELS],
-            WINDOW_SIZE * N_ASSETS
-        )
+        self.kernel_size = kernel_size
+        self.tcn = nn.ModuleList([TemporalBlock(self.NOISE_SIZE, self.HIDDEN_CHANNELS, kernel_size=1, stride=1, dilation=1, padding=0),
+                                 *[TemporalBlock(self.HIDDEN_CHANNELS, self.HIDDEN_CHANNELS, kernel_size=self.kernel_size, stride=1, dilation=i, padding=(self.kernel_size - 1) * i // 2 if self.kernel_size % 2 != 0 else i) for i in [1, 2, 4, 8]]])
+        self.last = nn.Conv1d(self.HIDDEN_CHANNELS, N_ASSETS, kernel_size=1, stride=1, dilation=1)
 
     def forward(self, x):
-        return self.mlp(x)
+        skip_layers = []
+        for layer in self.tcn:
+            skip, x = layer(x)
+            skip_layers.append(skip)
+        x = self.last(x + sum(skip_layers))
+        return x
 
     @classmethod
     def get_noise(cls, batch_size: int) -> torch.tensor:
         """
         (batch_size, noise_size, window_size)
         """
-        return torch.randn(batch_size, cls.NOISE_SIZE)
+        return torch.randn(batch_size, cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE)
 
     @classmethod
     def get_shifted_noise(cls, batch_size: int) -> torch.tensor:
@@ -49,14 +51,18 @@ class Generator(nn.Module):
         Each observation in batch contains last values from previous batch and new value
         """
         if batch_size == 1:
+            print(torch.mean(cls.get_noise(batch_size)))
             return cls.get_noise(batch_size)
 
         # Generate base noise
         noise = torch.randn(cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE + batch_size - 1)
-        result = torch.zeros(batch_size, cls.NOISE_SIZE * cls.NOISE_WINDOW_SIZE)
+        result = torch.zeros(batch_size, cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE)
         for i in range(batch_size):
-            result[i] = torch.concatenate([noise[j, i:i + cls.NOISE_WINDOW_SIZE] for j in range(N_ASSETS)])
+            result[i] = noise[:, i:i + cls.NOISE_WINDOW_SIZE]
+            if i == 0:
+                print(torch.mean(noise[:, i:i + cls.NOISE_WINDOW_SIZE]))
         return result
+
 
 class Discriminator(nn.Module):
     """
@@ -65,10 +71,12 @@ class Discriminator(nn.Module):
     """
     HIDDEN_CHANNELS = 10
 
-    def __init__(self, seq_len=WINDOW_SIZE):
+    def __init__(self, kernel_size=2, seq_len=WINDOW_SIZE):
         super().__init__()
+        self.kernel_size = kernel_size
+
         self.tcn = nn.ModuleList([TemporalBlock(N_ASSETS, self.HIDDEN_CHANNELS, kernel_size=1, stride=1, dilation=1, padding=0),
-                                 *[TemporalBlock(self.HIDDEN_CHANNELS, self.HIDDEN_CHANNELS, kernel_size=2, stride=1, dilation=i, padding=i) for i in [1, 2, 4, 8]]])
+                                 *[TemporalBlock(self.HIDDEN_CHANNELS, self.HIDDEN_CHANNELS, kernel_size=self.kernel_size, stride=1, dilation=i, padding=(self.kernel_size - 1) * i // 2 if self.kernel_size != 2 else i) for i in [1, 2, 4, 8]]])
         self.last = nn.Conv1d(self.HIDDEN_CHANNELS, 1, kernel_size=1, dilation=1)
         self.to_prob = nn.Sequential(nn.Linear(seq_len, 1), nn.Sigmoid())
 

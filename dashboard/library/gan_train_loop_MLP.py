@@ -11,7 +11,7 @@ from tqdm.auto import tqdm
 
 from library.constants import DEVICE, N_ASSETS, WINDOW_SIZE
 from correlations import plot_correlation_matrix
-from generation_LSTM import generate_samples
+from generation_MLP import generate_samples
 
 SAVE_PATH = Path('models/')
 SAVE_PATH.mkdir(exist_ok=True)
@@ -19,10 +19,9 @@ SAVE_PATH.mkdir(exist_ok=True)
 loss_fn = nn.BCELoss()
 
 
-def train_epoch(generator, discriminator, generator_optimizer, discriminator_optimizer, dataloader) -> tuple[
-    float, float]:
+def train_epoch(generator, discriminator, generator_optimizer, discriminator_optimizer, dataloader) -> tuple[float, float]:
     """
-    Train GAN with LSTM generator
+    Train GAN
     Return Generator and Discriminator losses
     """
     generator.train()
@@ -30,23 +29,29 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
 
     generator_losses = []
     discriminator_losses = []
-
+    # Iterate over batches of real samples
     for idx, real_samples in enumerate(dataloader):
         real_samples = real_samples.to(DEVICE)
 
-        # Generate fake samples
+        # Generate fake samples from the generator
+        # The same noise will be used in Generator and Discriminator training
         z = generator.get_noise(real_samples.shape[0]).to(DEVICE)
+        # print(z.shape)
+        # print(z.shape[0])
         with torch.no_grad():
             fake_samples = generator(z)
         fake_samples = fake_samples.reshape(z.shape[0], N_ASSETS, -1)
-
+#         print(fake_samples.shape)
         real_labels = torch.ones(real_samples.shape[0]).to(DEVICE)
         fake_labels = torch.zeros(real_samples.shape[0]).to(DEVICE)
 
-        # Train discriminator
+        # Train the discriminator
         discriminator_optimizer.zero_grad()
+        # Compute discriminator loss on real samples
         real_loss = loss_fn(discriminator(real_samples), real_labels)
+        # Compute discriminator loss on fake samples
         fake_loss = loss_fn(discriminator(fake_samples), fake_labels)
+        # Compute the total discriminator loss
         discriminator_loss = real_loss + fake_loss
         discriminator_loss.backward()
         discriminator_optimizer.step()
@@ -57,8 +62,9 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
             dp.data.clamp_(-clip, clip)
 
         if idx % 2 == 0:
-            # Train generator
+            # Train the generator
             generator_optimizer.zero_grad()
+            # Generate fake samples and compute generator loss
             fake_samples = generator(z)
             fake_samples = fake_samples.reshape(z.shape[0], N_ASSETS, -1)
             generator_loss = loss_fn(discriminator(fake_samples), real_labels)
@@ -67,8 +73,8 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
 
         discriminator_losses.append(discriminator_loss.item())
         generator_losses.append(generator_loss.item())
-
     return np.mean(generator_losses), np.mean(discriminator_losses)
+
 
 @torch.no_grad()
 def plot_gan(generator, assets: list[str], generator_losses: list[float], discriminator_losses: list[float], epoch: int, df_returns_real: pd.DataFrame):
