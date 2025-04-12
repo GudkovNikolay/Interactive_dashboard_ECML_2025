@@ -24,7 +24,7 @@ np.random.seed(42)
 from library.constants import N_ASSETS
 
 df_returns_real = get_pytorch_datataset()[0]#.cumsum()
-real_processes = np.array(df_returns_real).transpose()
+real_processes = np.array(df_returns_real.cumsum()).transpose()
 
 # Constants
 N_POINTS = df_returns_real.shape[0]
