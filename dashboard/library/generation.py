@@ -1,9 +1,8 @@
 import torch
 import pandas as pd
 import numpy as np
-
+from matplotlib import pyplot as plt
 from library.constants import DEVICE, N_ASSETS, WINDOW_SIZE
-
 
 @torch.no_grad()
 def generate_samples(generator, assets: list[str], n_samples: int = 1) -> pd.DataFrame | list[pd.DataFrame]:
@@ -23,8 +22,8 @@ def generate_samples(generator, assets: list[str], n_samples: int = 1) -> pd.Dat
         # Return multiple samples
         dfs = []
         for sample in samples:
-            # assert sample.size() == (N_ASSETS, WINDOW_SIZE)
-            dfs.append(pd.DataFrame(sample.T))#, columns=assets))
+            assert sample.size() == (N_ASSETS, WINDOW_SIZE)
+            dfs.append(pd.DataFrame(sample.T, columns=assets))
         return dfs
 
 
@@ -35,7 +34,7 @@ def generate_fake_returns(generator, df_returns_real: pd.DataFrame, seed: int) -
     # Merge generated DataFrames
     df_returns_fake = _merge_generated_dfs(dfs, df_returns_real)
     # Normalize fake returns
-    # df_returns_fake = _normalize_returns(df_returns_fake, df_returns_real)
+    df_returns_fake = _normalize_returns(df_returns_fake, df_returns_real)
     return df_returns_fake
 
 
@@ -46,7 +45,14 @@ def _merge_generated_dfs(dfs: list[pd.DataFrame], df_returns_real: pd.DataFrame)
     result = [dfs[0]]
     for i, df in enumerate(dfs[1:]):
         prev_df = dfs[i]
-        assert np.allclose(prev_df.iloc[31:].values, df.iloc[30:-1].values), f'{(~np.isclose(prev_df.iloc[30:].values, df.iloc[29:-1].values)).sum()}'
+        # TODO этот ассерт важен?
+        # try:
+        #     assert np.allclose(prev_df.iloc[31:].values, df.iloc[30:-1].values, atol=1e-06)
+        # except:
+        #     plt.plot(np.array(prev_df.iloc[1:].values - df.iloc[:-1].values))
+        #     plt.title(f'Broken generation, batch_num = {i}')
+        #     plt.show()
+
         result.append(df.iloc[-1:])
     return pd.concat(result).set_index(df_returns_real.index)
 

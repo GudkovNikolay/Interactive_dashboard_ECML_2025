@@ -14,6 +14,7 @@ def get_prices(n_assets: int = N_ASSETS) -> pd.DataFrame:
     """
     # Check that data exists
     tickers_file = DATA_FOLDER / 'tickers.csv'
+    # print('AAAAAAA', DATA_FOLDER, DATA_FOLDER.exists())
     assert DATA_FOLDER.exists() and CLOSE_FOLDER.exists() and tickers_file.exists()
 
     # Read tickers list
@@ -35,10 +36,15 @@ def get_prices(n_assets: int = N_ASSETS) -> pd.DataFrame:
     # Choose tickers with the longest history
     chosen_tickers = df.notna().sum().sort_values().index[:-n_assets - 1:-1].tolist()
     print(f'Chosen tickers: {chosen_tickers}')
+
+    # берем период, аналогичный Максимовскому
+    df = df[df.index <= '2023-07-21']
+
     print(f'Length before dropping NaNs: {len(df)}')
     # Drop NaNs
     df = df[chosen_tickers].dropna()
     print(f'Length after dropping NaNs: {len(df)}')
+
     return df
 
 
@@ -54,6 +60,7 @@ def get_log_returns(df_prices: pd.DataFrame) -> pd.DataFrame:
 class ReturnsDataset(Dataset):
     """
     PyTorch dataset with log-returns
+    В каждом следующем батче данные из предыдщего - первое значение ушло, последнее пришло
     """
 
     def __init__(self, df_returns: pd.DataFrame, window_size: int):
@@ -78,7 +85,7 @@ class ReturnsDataset(Dataset):
         return self.length
 
 
-def get_pytorch_datataset(window_size: int = WINDOW_SIZE, batch_size: int = BATCH_SIZE, subset_columns = None) -> tuple[pd.DataFrame, Dataset, DataLoader, int, int]:
+def get_pytorch_datataset(window_size: int = WINDOW_SIZE, batch_size: int = BATCH_SIZE, subset_columns: list[str] | None = None) -> tuple[pd.DataFrame, Dataset, DataLoader, int, int]:
     """
     Get DataSet, DataLoader, number of assets
     """

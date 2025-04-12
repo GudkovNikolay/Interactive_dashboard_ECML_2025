@@ -7,6 +7,9 @@ from scipy.linalg import sqrtm
 from TSGBench.src.ts2vec import initialize_ts2vec
 import torch
 
+with open("fid_model.pkl", 'rb') as f:
+    fid_model = pickle.load(f)
+    
 def find_length(data):
     if len(data.shape)>1:
         return 0
@@ -56,12 +59,13 @@ def preprocess(data, step=1):
 
 
     
-def calculate_fid(ori_data, gen_data):
+def calculate_fid(ori_data, gen_data, fid_model=fid_model):
     ori_data = ori_data.to_numpy()
     gen_data = gen_data.to_numpy()
     ori_data = preprocess(ori_data)
     gen_data = preprocess(gen_data)
-    fid_model = initialize_ts2vec(np.transpose(ori_data, (0, 2, 1)),torch.device('cpu'))
+    # fid_model = initialize_ts2vec(np.transpose(ori_data, (0, 2, 1)),torch.device('cpu'))
+
     ori_repr = fid_model.encode(np.transpose(ori_data,(0, 2, 1)), encoding_window='full_series')
     gen_repr = fid_model.encode(np.transpose(gen_data,(0, 2, 1)), encoding_window='full_series')
     # calculate mean and covariance statistics

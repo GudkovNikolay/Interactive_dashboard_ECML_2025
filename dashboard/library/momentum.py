@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats
 
-from library.constants import N_TRADING_DAYS, CONFIDENCE_INTERVAL, get_shifted_returns
+fromlibrary.constants import N_TRADING_DAYS, CONFIDENCE_INTERVAL, get_shifted_returns
 from tqdm.notebook import tqdm
 
 
@@ -21,8 +21,8 @@ def get_momentum_signal(df_returns: pd.DataFrame, n_finish: int, n_start: int) -
     from_min_periods = 20
     to_min_periods = 10
     assert n_finish >= 2 * from_min_periods and n_start >= 2 * to_min_periods
-    from_returns_sum = df_returns.rolling(n_finish, min_periods=from_min_periods).sum()
-    to_returns_sum = df_returns.rolling(n_start, min_periods=to_min_periods).sum()
+    from_returns_sum = df_returns.rolling(pd.Timedelta(days=n_finish), min_periods=from_min_periods).sum()
+    to_returns_sum = df_returns.rolling(pd.Timedelta(days=n_start), min_periods=to_min_periods).sum()
     return (from_returns_sum - to_returns_sum)
 
 

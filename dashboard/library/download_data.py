@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 
 # Define directories
-DATA_FOLDER = Path('data/')
+DATA_FOLDER = Path('library/data/')
 CLOSE_FOLDER = DATA_FOLDER / 'close'
 
 # Make directories
@@ -48,4 +48,5 @@ async def main():
 
 
 if __name__ == '__main__':
+    print(DATA_FOLDER)
     asyncio.run(main())

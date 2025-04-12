@@ -22,10 +22,11 @@ class Generator(nn.Module):
     # Define number of hidden channels
     HIDDEN_CHANNELS = 10
 
-    def __init__(self):
+    def __init__(self, kernel_size=2):
         super().__init__()
+        self.kernel_size = kernel_size
         self.tcn = nn.ModuleList([TemporalBlock(self.NOISE_SIZE, self.HIDDEN_CHANNELS, kernel_size=1, stride=1, dilation=1, padding=0),
-                                 *[TemporalBlock(self.HIDDEN_CHANNELS, self.HIDDEN_CHANNELS, kernel_size=2, stride=1, dilation=i, padding=i) for i in [1, 2, 4, 8]]])
+                                 *[TemporalBlock(self.HIDDEN_CHANNELS, self.HIDDEN_CHANNELS, kernel_size=self.kernel_size, stride=1, dilation=i, padding=(self.kernel_size - 1) * i // 2 if self.kernel_size % 2 != 0 else i) for i in [1, 2, 4, 8]]])
         self.last = nn.Conv1d(self.HIDDEN_CHANNELS, N_ASSETS, kernel_size=1, stride=1, dilation=1)
 
     def forward(self, x):
@@ -50,6 +51,7 @@ class Generator(nn.Module):
         Each observation in batch contains last values from previous batch and new value
         """
         if batch_size == 1:
+            print(torch.mean(cls.get_noise(batch_size)))
             return cls.get_noise(batch_size)
 
         # Generate base noise
@@ -57,6 +59,8 @@ class Generator(nn.Module):
         result = torch.zeros(batch_size, cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE)
         for i in range(batch_size):
             result[i] = noise[:, i:i + cls.NOISE_WINDOW_SIZE]
+            if i == 0:
+                print(torch.mean(noise[:, i:i + cls.NOISE_WINDOW_SIZE]))
         return result
 
 
@@ -67,10 +71,12 @@ class Discriminator(nn.Module):
     """
     HIDDEN_CHANNELS = 10
 
-    def __init__(self, seq_len=WINDOW_SIZE):
+    def __init__(self, kernel_size=2, seq_len=WINDOW_SIZE):
         super().__init__()
+        self.kernel_size = kernel_size
+
         self.tcn = nn.ModuleList([TemporalBlock(N_ASSETS, self.HIDDEN_CHANNELS, kernel_size=1, stride=1, dilation=1, padding=0),
-                                 *[TemporalBlock(self.HIDDEN_CHANNELS, self.HIDDEN_CHANNELS, kernel_size=2, stride=1, dilation=i, padding=i) for i in [1, 2, 4, 8]]])
+                                 *[TemporalBlock(self.HIDDEN_CHANNELS, self.HIDDEN_CHANNELS, kernel_size=self.kernel_size, stride=1, dilation=i, padding=(self.kernel_size - 1) * i // 2 if self.kernel_size != 2 else i) for i in [1, 2, 4, 8]]])
         self.last = nn.Conv1d(self.HIDDEN_CHANNELS, 1, kernel_size=1, dilation=1)
         self.to_prob = nn.Sequential(nn.Linear(seq_len, 1), nn.Sigmoid())
 

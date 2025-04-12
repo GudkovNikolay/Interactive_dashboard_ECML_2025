@@ -5,7 +5,7 @@ import seaborn as sns
 import scipy.stats
 from dataclasses import dataclass
 
-from library.constants import N_TRADING_DAYS, CONFIDENCE_INTERVAL, get_shifted_returns
+fromlibrary.constants import N_TRADING_DAYS, CONFIDENCE_INTERVAL, get_shifted_returns
 
 
 def plot_tickers_performance(df_returns: pd.DataFrame):
