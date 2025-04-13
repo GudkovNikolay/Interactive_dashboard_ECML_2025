@@ -71,6 +71,7 @@ x = df_returns_fake.index
 
 generated_processes['TCN'] = np.array(df_returns_fake.cumsum()).transpose()
 generated_returns['TCN'] = df_returns_fake
+generated_returns['MLP'] = df_returns_real
 
 # Generate strategy returns for the bottom plot
 train_returns = np.cumsum(np.random.randn(N_POINTS))
@@ -86,20 +87,6 @@ cfid_values['TCN'] = calculate_fid(df_returns_real, generated_returns['TCN'])
 heatmap_data_real = np.random.rand(HEATMAP_SIZE, HEATMAP_SIZE)
 heatmap_data_generated = {
     arch: np.random.rand(HEATMAP_SIZE, HEATMAP_SIZE)
-    for arch in architectures
-}
-
-# Generate random optimal parameters
-optimal_params_train = {
-    'n_start': np.random.randint(1, 5),
-    'n_finish': np.random.randint(6, 10)
-}
-
-optimal_params_generated = {
-    arch: {
-        'n_start': np.random.randint(1, 5),
-        'n_finish': np.random.randint(6, 10)
-    }
     for arch in architectures
 }
 
@@ -126,6 +113,35 @@ heatmap_generated_values = sharp_grid(generated_returns['TCN']).flatten()#heatma
 #     'values': heatmap_generated_values
 # })
 
+N_START_VALUES = [20, 40, 60, 80, 100]
+N_FINISH_VALUES = [150, 200, 250, 300, 350, 400]
+
+# Подготовка данных
+xx, yy = np.meshgrid(N_START_VALUES, N_FINISH_VALUES)
+
+heatmap_real_source = ColumnDataSource(data={
+    'x': xx.T.flatten(),
+    'y': yy.T.flatten(),
+    'values': heatmap_real_values.flatten()
+})
+
+heatmap_generated_source = ColumnDataSource(data={
+    'x': xx.T.flatten(),
+    'y': yy.T.flatten(),
+    'values': heatmap_generated_values.flatten()
+})
+
+# Generate random optimal parameters
+optimal_params_train = {
+    'n_start': heatmap_real_source.data['x'][np.argmax(heatmap_real_source.data['values'])],
+    'n_finish': heatmap_real_source.data['y'][np.argmax(heatmap_real_source.data['values'])]
+}
+
+optimal_params_generated = {
+    'n_start': heatmap_generated_source.data['x'][np.argmax(heatmap_generated_source.data['values'])],
+    'n_finish': heatmap_generated_source.data['y'][np.argmax(heatmap_generated_source.data['values'])]
+}
+
 # For strategy returns plot
 strategy_source = ColumnDataSource(data={
     'x': x,
@@ -141,7 +157,7 @@ architecture_label = Div(text="<b>Architecture type</b>",
 
 cfid_label = Div(text="<b>quality of generation (C-FID)</b>",
                  styles={'text-align': 'center'})
-cfid_value = Div(text=f"{cfid_values['TCN']:.2f}",
+cfid_value = Div(text=f"{cfid_values['TCN']:.2e}",
                  styles={
                      'border': '1px solid gray',
                      'border-radius': '5px',
@@ -192,7 +208,7 @@ generated_plot = create_stock_plot("generated stocks", generated_source)
 
 
 # Create heatmaps with fixed size
-def create_heatmap(title, values):#TODO
+def create_heatmap(title, source):#TODO
     # Данные
     N_START_VALUES = [20, 40, 60, 80, 100]
     N_FINISH_VALUES = [150, 200, 250, 300, 350, 400]
@@ -200,11 +216,11 @@ def create_heatmap(title, values):#TODO
 
     # Подготовка данных
     xx, yy = np.meshgrid(N_START_VALUES, N_FINISH_VALUES)
-    source = ColumnDataSource(data={
-        'x': xx.T.flatten(),
-        'y': yy.T.flatten(),
-        'values': values.flatten()
-    })
+
+    # print(source.data)
+    # print(source.data['values'])
+
+    values = source.data['values']
 
     # Цветовая карта
     color_mapper = LinearColorMapper(
@@ -262,8 +278,8 @@ def create_heatmap(title, values):#TODO
 
 heatmap_title = Div(text="<b>SR for momentum parameters</b>",
                     styles={'text-align': 'center'})
-heatmap_real = create_heatmap("On real stocks", heatmap_real_values)
-heatmap_generated = create_heatmap("On generated stocks", heatmap_generated_values)
+heatmap_real = create_heatmap("On real stocks", heatmap_real_source)
+heatmap_generated = create_heatmap("On generated stocks", heatmap_generated_source)
 
 
 # Create parameter displays with identical styling
@@ -296,8 +312,8 @@ params_train = create_param_column(
 
 params_generated = create_param_column(
     "optimal parameters with generated",
-    optimal_params_generated['TCN']['n_start'],
-    optimal_params_generated['TCN']['n_finish']
+    optimal_params_generated['n_start'],
+    optimal_params_generated['n_finish']
 )
 
 params_custom = create_param_column(
@@ -334,15 +350,11 @@ def update_architecture(attr, old, new):
     generated_source.data = new_data
 
     # Update C-FID value
-    cfid_value.text = f"{cfid_values[selected_arch]:.2f}"
+    cfid_value.text = f"{cfid_values[selected_arch]:.2e}"
 
     # Update heatmap
-    new_heatmap_data = heatmap_data_generated[selected_arch].flatten()
-    heatmap_generated_source.data = {
-        'x': heatmap_x,
-        'y': heatmap_y,
-        'values': new_heatmap_data
-    }
+    new_heatmap_data = sharp_grid(generated_returns[selected_arch]).flatten()
+    heatmap_generated_source.data['values'] = new_heatmap_data
 
     # Update optimal parameters
     params_generated.children[1].text = f"n_start = {optimal_params_generated[selected_arch]['n_start']}"
