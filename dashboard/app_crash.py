@@ -3,14 +3,14 @@ from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource,
                           TextInput, LinearColorMapper,
-                          BasicTicker, ColorBar, Select)
+                          BasicTicker, ColorBar, Select, Span, Label, Button)
 from bokeh.plotting import figure
 from bokeh.palettes import Viridis256
 from bokeh.transform import transform
 from bokeh.models.ranges import Range1d
 from matplotlib import pyplot as plt
 
-from sharp_ratio import sharp_grid
+from sharp_ratio import sharp_grid, strategy_return
 from library.constants import DEVICE
 from library.dataset import get_pytorch_datataset
 from library.gan import Generator
@@ -30,10 +30,20 @@ from library.constants import N_ASSETS
 df_returns_real = get_pytorch_datataset()[0]#.cumsum()
 real_processes = np.array(df_returns_real.cumsum()).transpose()
 
+# Разделяем данные на train/test (80/20)
+split_idx = int(len(df_returns_real) * 0.8)
+train_data = df_returns_real.iloc[:split_idx]
+test_data = df_returns_real.iloc[split_idx:]  # Сохраняем тестовые данные в отдельную переменную
+
+# Получаем дату разделения
+split_date = df_returns_real.index[split_idx]
+
 # Constants
 N_POINTS = df_returns_real.shape[0]
 N_PROCESSES = df_returns_real.shape[1]
 HEATMAP_SIZE = 10
+
+GENERATIONS_AMOUNT = 10
 
 # Generate fixed real Wiener processes
 # np.random.seed(42)
@@ -58,30 +68,30 @@ generated_processes = {
 generator = Generator(2).to(DEVICE)
 load_gan('TCN', generator, epoch=800)
 
-df_returns_fake = generate_fake_returns(generator, df_returns_real, seed=0)
-x = df_returns_fake.index
-# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
-#
-# plt.subplot(2, 1, 1)
+df_returns_fake = [generate_fake_returns(generator, df_returns_real, seed=i) for i in range(GENERATIONS_AMOUNT)]
+x = df_returns_fake[0].index
 
-# df_returns_fake.cumsum().plot(ax=ax2)
-# plt.title('Fake')
-# plt.ylabel('Cumulative log-returns')
-# plt.show()
 
-generated_processes['TCN'] = np.array(df_returns_fake.cumsum()).transpose()
-generated_returns['TCN'] = df_returns_fake
+generated_processes['TCN'] = np.array(df_returns_fake[0].cumsum()).transpose()
+generated_returns['TCN'] = df_returns_fake[0]
 generated_returns['MLP'] = df_returns_real
 
-# Generate strategy returns for the bottom plot
-train_returns = np.cumsum(np.random.randn(N_POINTS))
-fake_returns = np.cumsum(np.random.randn(N_POINTS))
-custom_returns = np.cumsum(np.random.randn(N_POINTS))
+
+
+
 
 # Generate random C-FID values
 # cfid_values = {arch: calculate_fid(df_returns_real, generated_returns[arch]) for arch in architectures}
 cfid_values = {arch: np.random.uniform(1, 10) for arch in architectures}
 cfid_values['TCN'] = calculate_fid(df_returns_real, generated_returns['TCN'])
+
+regenerate_button = Button(label="⟳ Regenerate",
+                           button_type="default",
+                           width=100,
+                           styles={'margin-left': '20px'})
+
+
+
 
 # Generate heatmap data
 heatmap_data_real = np.random.rand(HEATMAP_SIZE, HEATMAP_SIZE)
@@ -142,13 +152,7 @@ optimal_params_generated = {
     'n_finish': heatmap_generated_source.data['y'][np.argmax(heatmap_generated_source.data['values'])]
 }
 
-# For strategy returns plot
-strategy_source = ColumnDataSource(data={
-    'x': x,
-    'train': train_returns,
-    'fake': fake_returns,
-    'custom': custom_returns
-})
+
 
 # Create widgets with correct styles attribute
 architecture_selector = RadioButtonGroup(labels=architectures, active=0)
@@ -182,33 +186,48 @@ def create_param_display(text):
 
 
 # Create plots with fixed size and no stretching
-def create_stock_plot(title, source):
+# Создаем график с вертикальной чертой
+def create_stock_plot(title, source, split=False):
     p = figure(
         title=title,
         width=400,
         height=300,
         tools="",
         toolbar_location=None,
-        x_axis_type='datetime',  # Можно указать "datetime" если время
+        x_axis_type='datetime',
     )
 
-    # Настройка внешнего вида оси X
-    p.xaxis.axis_label_text_font_style = "normal"
-    p.xaxis.axis_label_text_font_size = "12pt"
+    if split:
+        # Добавляем вертикальную линию разделения
+        split_line = Span(location=split_date,
+                          dimension='height',
+                          line_color='red',
+                          line_width=1,
+                          line_dash='dashed')
+        p.add_layout(split_line)
 
-    # Добавление линий для каждого процесса
+        # Добавляем подписи train/test
+        train_label = Label(x=df_returns_real.index[int(split_idx * 0.4)], y=0.9 * max(real_processes.flatten()),
+                            text='train', text_color='red', text_font_size='10pt')
+        test_label = Label(x=df_returns_real.index[split_idx + int((len(df_returns_real) - split_idx) * 0.1)],
+                           y=0.9 * max(real_processes.flatten()),
+                           text='test', text_color='red', text_font_size='10pt')
+        p.add_layout(train_label)
+        p.add_layout(test_label)
+
+    # Добавляем линии для каждого процесса
     for i in range(N_PROCESSES):
         p.line('x', f'y{i}', source=source, line_width=2)
 
     return p
 
 
-real_plot = create_stock_plot("real stocks", real_source)
+real_plot = create_stock_plot("real stocks", real_source, split=True)
 generated_plot = create_stock_plot("generated stocks", generated_source)
 
 
 # Create heatmaps with fixed size
-def create_heatmap(title, source):#TODO
+def create_heatmap(title, source):
     # Данные
     N_START_VALUES = [20, 40, 60, 80, 100]
     N_FINISH_VALUES = [150, 200, 250, 300, 350, 400]
@@ -284,14 +303,14 @@ heatmap_generated = create_heatmap("On generated stocks", heatmap_generated_sour
 
 n_start_select = Select(
     title="n_start:",
-    value=str(N_START_VALUES[0]),
+    value=N_START_VALUES[0],
     options=[str(x) for x in N_START_VALUES],
     width=150
 )
 
 n_finish_select = Select(
     title="n_finish:",
-    value=str(N_FINISH_VALUES[0]),
+    value=N_FINISH_VALUES[0],
     options=[str(x) for x in N_FINISH_VALUES],
     width=150
 )
@@ -391,7 +410,18 @@ params_custom = create_param_column(
     is_custom=True
 )
 
+# # Generate strategy returns for the bottom plot
+train_returns = strategy_return(test_data, nf=optimal_params_train['n_finish'], ns=optimal_params_train['n_start']).cumsum()
+fake_returns = strategy_return(test_data, nf=optimal_params_generated['n_finish'], ns=optimal_params_generated['n_start']).cumsum()
+custom_returns = strategy_return(test_data, nf=n_finish_select.value, ns=n_start_select.value).cumsum()
 
+# For strategy returns plot
+strategy_source = ColumnDataSource(data={
+    'x': test_data.index,
+    'train': train_returns,
+    'fake': fake_returns,
+    'custom': custom_returns
+})
 
 # Create strategy returns plot with fixed size
 strategy_selector = RadioButtonGroup(labels=['train', 'fake', 'custom'], active=0)
@@ -400,7 +430,8 @@ strategy_plot = figure(
     width=800,
     height=300,
     tools="",
-    toolbar_location=None
+    toolbar_location=None,
+    x_axis_type='datetime',
 )
 
 # Initial plot with all lines (train highlighted)
@@ -426,11 +457,6 @@ def update_architecture(attr, old, new):
     new_heatmap_data = sharp_grid(generated_returns[selected_arch]).flatten()
     heatmap_generated_source.data['values'] = new_heatmap_data
 
-    # Generate random optimal parameters
-    optimal_params_train = {
-        'n_start': heatmap_real_source.data['x'][np.argmax(heatmap_real_source.data['values'])],
-        'n_finish': heatmap_real_source.data['y'][np.argmax(heatmap_real_source.data['values'])]
-    }
 
     optimal_params_generated = {
         'n_start': heatmap_generated_source.data['x'][np.argmax(heatmap_generated_source.data['values'])],
@@ -440,7 +466,70 @@ def update_architecture(attr, old, new):
     # Обновляем блок параметров generated
     params_generated.children[1].children[1].text = str(optimal_params_generated['n_start'])
     params_generated.children[1].children[3].text = str(optimal_params_generated['n_finish'])
+
+    strategy_source.data['fake'] = strategy_return(test_data, nf=optimal_params_generated['n_finish'], ns=optimal_params_generated['n_start']).cumsum()
 architecture_selector.on_change('active', update_architecture)
+
+# 2. Создаем обработчик для кнопки
+def regenerate_callback():
+    # Получаем текущую выбранную архитектуру
+    selected_arch = architectures[architecture_selector.active]
+
+    # Генерируем новые данные с новым случайным seed
+    new_seed = np.random.randint(0, 10000)
+    new_returns = generate_fake_returns(generator, df_returns_real, seed=new_seed)
+
+    # Обновляем данные для текущей архитектуры
+    generated_returns[selected_arch] = new_returns
+    generated_processes[selected_arch] = np.array(new_returns.cumsum()).transpose()
+
+    # Обновляем график
+    new_data = {'x': x}
+    for i in range(N_PROCESSES):
+        new_data[f'y{i}'] = generated_processes[selected_arch][i]
+    generated_source.data = new_data
+
+    # Пересчитываем heatmap и оптимальные параметры
+    heatmap_generated_values = sharp_grid(new_returns).flatten()
+    heatmap_generated_source.data = {
+        'x': heatmap_x,
+        'y': heatmap_y,
+        'values': heatmap_generated_values
+    }
+
+    # Находим новые оптимальные параметры
+    values = np.array(heatmap_generated_values)
+    max_idx = np.argmax(values)
+    opt_n_start = heatmap_x[max_idx]
+    opt_n_finish = heatmap_y[max_idx]
+
+    # Обновляем отображаемые параметры
+    optimal_params_generated[selected_arch] = {
+        'n_start': int(opt_n_start),
+        'n_finish': int(opt_n_finish)
+    }
+    params_generated.children[1].children[1].text = str(opt_n_start)
+    params_generated.children[1].children[3].text = str(opt_n_finish)
+
+    # Обновляем стратегию
+    strategy_source.data['fake'] = strategy_return(test_data, nf=int(opt_n_start),
+                                                     ns=int(opt_n_finish)).cumsum()
+
+
+
+
+regenerate_button.on_click(regenerate_callback)
+
+def update_custom(attr, old, new):
+    # strategy_source.data['custom'] = strategy_return(test_data, nf=n_finish_select.value, ns=n_start_select.value).cumsum()
+
+    try:
+        strategy_source.data['custom'] = strategy_return(test_data, nf=int(n_finish_select.value),
+                                                         ns=int(n_start_select.value)).cumsum()
+    except Exception as e:
+        print(f"Error updating strategy: {e}")
+n_finish_select.on_change('value', update_custom)
+n_start_select.on_change('value', update_custom)
 
 
 # Callback for strategy selection
@@ -481,11 +570,14 @@ strategy_selector.on_change('active', update_strategy)
 header = row(
     column(architecture_label, architecture_selector,
            styles={'margin': '0 auto'}),
+    regenerate_button,  # Добавляем кнопку справа
     column(cfid_label, cfid_value,
            styles={'margin': '0 auto'}),
+
     align="center",
     styles={'justify-content': 'center'}
 )
+
 
 # Top plots block with margin bottom
 plots_block = column(

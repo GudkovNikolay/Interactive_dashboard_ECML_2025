@@ -26,3 +26,9 @@ def sharp_grid(df_returns_fake_list):
         for n_finish in N_FINISH_VALUES:
             stats_fake_by_params[n_start, n_finish] = get_momentum_signal_statistics_with_params_list([df_returns_fake_list], n_finish=n_finish, n_start=n_start)
     return np.array([[stats_fake_by_params[n_start, n_finish].sharpe_annual for n_finish in N_FINISH_VALUES] for n_start in N_START_VALUES])
+
+def strategy_return(returns, nf=365, ns=180):
+    sig = get_momentum_signal(returns, n_finish=nf, n_start=ns)
+    df_momentum_weights = get_portfolio_from_signal(sig)
+
+    return get_returns(df_momentum_weights, returns)
