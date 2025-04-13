@@ -10,6 +10,7 @@ from bokeh.transform import transform
 from bokeh.models.ranges import Range1d
 from matplotlib import pyplot as plt
 
+from sharp_ratio import sharp_grid
 from library.constants import DEVICE
 from library.dataset import get_pytorch_datataset
 from library.gan import Generator
@@ -17,6 +18,9 @@ from library.gan_train_loop import load_gan
 from library.generation import generate_fake_returns
 
 from fid import calculate_fid
+
+N_START_VALUES = [20, 40, 60, 80, 100]
+N_FINISH_VALUES = [150, 200, 250, 300, 350, 400]
 
 # Generate fixed real Wiener processes
 np.random.seed(42)
@@ -105,22 +109,22 @@ generated_source = ColumnDataSource(
     data={'x': x, **{f'y{i}': generated_processes['TCN'][i] for i in range(N_PROCESSES)}})
 
 # For heatmaps
-heatmap_x = np.tile(np.arange(HEATMAP_SIZE), HEATMAP_SIZE)
-heatmap_y = np.repeat(np.arange(HEATMAP_SIZE), HEATMAP_SIZE)
-heatmap_real_values = heatmap_data_real.flatten()
-heatmap_generated_values = heatmap_data_generated['TCN'].flatten()
+heatmap_x = np.tile(N_START_VALUES, len(N_FINISH_VALUES))
+heatmap_y = np.repeat(N_FINISH_VALUES, len(N_START_VALUES))
+heatmap_real_values = sharp_grid(df_returns_real).flatten()
+heatmap_generated_values = sharp_grid(generated_returns['TCN']).flatten()#heatmap_data_generated['TCN'].flatten()
 
-heatmap_real_source = ColumnDataSource(data={
-    'x': heatmap_x,
-    'y': heatmap_y,
-    'values': heatmap_real_values
-})
-
-heatmap_generated_source = ColumnDataSource(data={
-    'x': heatmap_x,
-    'y': heatmap_y,
-    'values': heatmap_generated_values
-})
+# heatmap_real_source = ColumnDataSource(data={
+#     'x': heatmap_x,
+#     'y': heatmap_y,
+#     'values': heatmap_real_values
+# })
+#
+# heatmap_generated_source = ColumnDataSource(data={
+#     'x': heatmap_x,
+#     'y': heatmap_y,
+#     'values': heatmap_generated_values
+# })
 
 # For strategy returns plot
 strategy_source = ColumnDataSource(data={
@@ -188,32 +192,78 @@ generated_plot = create_stock_plot("generated stocks", generated_source)
 
 
 # Create heatmaps with fixed size
-def create_heatmap(title, source):
-    color_mapper = LinearColorMapper(palette=Viridis256, low=0, high=1)
+def create_heatmap(title, values):#TODO
+    # Данные
+    N_START_VALUES = [20, 40, 60, 80, 100]
+    N_FINISH_VALUES = [150, 200, 250, 300, 350, 400]
 
-    p = figure(
-        title=title,
-        width=300,
-        height=300,
-        x_range=Range1d(0, HEATMAP_SIZE, bounds='auto'),
-        y_range=Range1d(0, HEATMAP_SIZE, bounds='auto'),
-        tools="",
-        toolbar_location=None
+
+    # Подготовка данных
+    xx, yy = np.meshgrid(N_START_VALUES, N_FINISH_VALUES)
+    source = ColumnDataSource(data={
+        'x': xx.T.flatten(),
+        'y': yy.T.flatten(),
+        'values': values.flatten()
+    })
+
+    # Цветовая карта
+    color_mapper = LinearColorMapper(
+        palette=Viridis256,
+        low=values.min(),
+        high=values.max()
     )
 
-    p.rect(x='x', y='y', width=1, height=1, source=source,
-           line_color=None, fill_color=transform('values', color_mapper))
+    # Создание фигуры
+    p = figure(
+        title=title,
+        x_range=Range1d(min(N_START_VALUES) - 10, max(N_START_VALUES) + 10),
+        y_range=Range1d(min(N_FINISH_VALUES) - 25, max(N_FINISH_VALUES) + 25),
+        tools="hover",  # ТОЛЬКО ПОДСКАЗКИ ПРИ НАВЕДЕНИИ
+        toolbar_location=None,  # УБИРАЕМ ПАНЕЛЬ ИНСТРУМЕНТОВ
+        width=600,
+        height=400,
+        x_axis_label='n_start',
+        y_axis_label='n_finish'
+    )
 
-    color_bar = ColorBar(color_mapper=color_mapper, ticker=BasicTicker(),
-                         label_standoff=12, border_line_color=None)
+    # Прямоугольники хитмэпа
+    p.rect(
+        x='x', y='y',
+        width=20,
+        height=50,
+        source=source,
+        fill_color={'field': 'values', 'transform': color_mapper},
+        line_color=None
+    )
+
+    # Цветовая шкала
+    color_bar = ColorBar(
+        color_mapper=color_mapper,
+        width=20,
+        location=(0, 0),
+        title="Sharpe Ratio"
+    )
     p.add_layout(color_bar, 'right')
+
+    # Настройка подсказок
+    p.hover.tooltips = [
+        ("Start period", "@x days"),
+        ("Finish period", "@y days"),
+        ("Sharpe Ratio", "@values{0.3f}")
+    ]
+
+    # Чистый дизайн
+    p.xaxis.ticker = N_START_VALUES
+    p.yaxis.ticker = N_FINISH_VALUES
+    p.grid.visible = False  # УБИРАЕМ СЕТКУ
+    p.outline_line_color = None  # УБИРАЕМ РАМКУ
     return p
 
 
 heatmap_title = Div(text="<b>SR for momentum parameters</b>",
                     styles={'text-align': 'center'})
-heatmap_real = create_heatmap("On real stocks", heatmap_real_source)
-heatmap_generated = create_heatmap("On generated stocks", heatmap_generated_source)
+heatmap_real = create_heatmap("On real stocks", heatmap_real_values)
+heatmap_generated = create_heatmap("On generated stocks", heatmap_generated_values)
 
 
 # Create parameter displays with identical styling
