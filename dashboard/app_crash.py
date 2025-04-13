@@ -3,7 +3,7 @@ from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource,
                           TextInput, LinearColorMapper,
-                          BasicTicker, ColorBar)
+                          BasicTicker, ColorBar, Select)
 from bokeh.plotting import figure
 from bokeh.palettes import Viridis256
 from bokeh.transform import transform
@@ -282,14 +282,30 @@ heatmap_real = create_heatmap("On real stocks", heatmap_real_source)
 heatmap_generated = create_heatmap("On generated stocks", heatmap_generated_source)
 
 
+n_start_select = Select(
+    title="n_start:",
+    value=str(N_START_VALUES[0]),
+    options=[str(x) for x in N_START_VALUES],
+    width=150
+)
+
+n_finish_select = Select(
+    title="n_finish:",
+    value=str(N_FINISH_VALUES[0]),
+    options=[str(x) for x in N_FINISH_VALUES],
+    width=150
+)
+
 # Create parameter displays with identical styling
+# Обновляем функцию создания колонки с параметрами
 def create_param_column(title, n_start, n_finish, is_custom=False):
     title_div = Div(text=f"<b>{title}</b>",
-                    styles={'text-align': 'center', 'margin-bottom': '10px'})
+                   styles={'text-align': 'center', 'margin-bottom': '10px'})
 
     if is_custom:
-        n_start_widget = TextInput(value="", title="n_start:", width=150)
-        n_finish_widget = TextInput(value="", title="n_finish:", width=150)
+        # Используем Select вместо TextInput
+        n_start_widget = n_start_select
+        n_finish_widget = n_finish_select
     else:
         n_start_widget = create_param_display(f"n_start = {n_start}")
         n_finish_widget = create_param_display(f"n_finish = {n_finish}")
@@ -299,29 +315,83 @@ def create_param_column(title, n_start, n_finish, is_custom=False):
         n_start_widget,
         n_finish_widget,
         align="center",
-        styles={'margin': '0 30px'}  # Increased horizontal spacing
+        styles={'margin': '0 30px'}
     )
 
 
-# Create parameter columns
-params_train = create_param_column(
-    "optimal parameters with train",
+# Стилизованный Div для отображения значений параметров
+def create_param_value(value):
+    return Div(
+        text=f"<div style='text-align: center; border: 1px solid gray; border-radius: 5px; padding: 5px; width: 60px;'>{value}</div>",
+        styles={'margin': '0 auto'})
+
+
+# Общие стили для всех параметров
+PARAM_BOX_STYLE = {
+    'border': '1px solid gray',
+    'border-radius': '5px',
+    'padding': '5px',
+    'text-align': 'center',
+    'width': '100px',  # Фиксированная ширина для всех
+    'margin': '5px auto'
+}
+
+
+# Функция создания единообразного блока параметров
+def create_uniform_param_column(title, n_start=None, n_finish=None, is_select=False):
+    title_div = Div(text=f"<b>{title}</b>",
+                    styles={'text-align': 'center', 'margin-bottom': '10px'})
+
+    # Блок для n_start
+    start_label = Div(text="n_start:", styles={'text-align': 'center'})
+    if is_select:
+        start_widget = Select(options=[str(x) for x in N_START_VALUES],
+                              value=str(N_START_VALUES[0]),
+                              styles={'width': '100px'})  # Фиксируем ширину
+    else:
+        start_widget = Div(text=str(n_start), styles=PARAM_BOX_STYLE)
+
+    # Блок для n_finish
+    finish_label = Div(text="n_finish:", styles={'text-align': 'center'})
+    if is_select:
+        finish_widget = Select(options=[str(x) for x in N_FINISH_VALUES],
+                               value=str(N_FINISH_VALUES[0]),
+                               styles={'width': '100px'})  # Фиксируем ширину
+    else:
+        finish_widget = Div(text=str(n_finish), styles=PARAM_BOX_STYLE)
+
+    return column(
+        title_div,
+        column(start_label, start_widget,
+               finish_label, finish_widget,
+               align="center"),
+        align="center",
+        styles={'margin': '0 30px'}
+    )
+
+
+# Создаем блоки параметров с единым стилем
+params_train = create_uniform_param_column(
+    "Optimal parameters (train)",
     optimal_params_train['n_start'],
     optimal_params_train['n_finish']
 )
 
-params_generated = create_param_column(
-    "optimal parameters with generated",
+params_generated = create_uniform_param_column(
+    "Optimal parameters (generated)",
     optimal_params_generated['n_start'],
     optimal_params_generated['n_finish']
 )
 
+# Блок с выпадающими списками (оставляем как было)
 params_custom = create_param_column(
-    "insert your parameters",
+    "Select your parameters",
     "",
     "",
     is_custom=True
 )
+
+
 
 # Create strategy returns plot with fixed size
 strategy_selector = RadioButtonGroup(labels=['train', 'fake', 'custom'], active=0)
@@ -356,11 +426,20 @@ def update_architecture(attr, old, new):
     new_heatmap_data = sharp_grid(generated_returns[selected_arch]).flatten()
     heatmap_generated_source.data['values'] = new_heatmap_data
 
-    # Update optimal parameters
-    params_generated.children[1].text = f"n_start = {optimal_params_generated[selected_arch]['n_start']}"
-    params_generated.children[2].text = f"n_finish = {optimal_params_generated[selected_arch]['n_finish']}"
+    # Generate random optimal parameters
+    optimal_params_train = {
+        'n_start': heatmap_real_source.data['x'][np.argmax(heatmap_real_source.data['values'])],
+        'n_finish': heatmap_real_source.data['y'][np.argmax(heatmap_real_source.data['values'])]
+    }
 
+    optimal_params_generated = {
+        'n_start': heatmap_generated_source.data['x'][np.argmax(heatmap_generated_source.data['values'])],
+        'n_finish': heatmap_generated_source.data['y'][np.argmax(heatmap_generated_source.data['values'])]
+    }
 
+    # Обновляем блок параметров generated
+    params_generated.children[1].children[1].text = str(optimal_params_generated['n_start'])
+    params_generated.children[1].children[3].text = str(optimal_params_generated['n_finish'])
 architecture_selector.on_change('active', update_architecture)
 
 
