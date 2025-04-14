@@ -48,7 +48,7 @@ N_PROCESSES = df_returns_real.shape[1]
 HEATMAP_SIZE = 10
 
 GENERATIONS_AMOUNT = 10
-
+GENERATIONS_COUNTER = 0
 # Generate fixed real Wiener processes
 # np.random.seed(42)
 # df_returns_real = get_pytorch_datataset()[0]
@@ -58,7 +58,7 @@ GENERATIONS_AMOUNT = 10
 # real_processes = np.cumsum(np.random.randn(N_PROCESSES, N_POINTS), axis=1)
 
 # Generate different generated processes for each architecture
-architectures = ['TCN', 'MLP', 'LSTM', 'GRU']
+architectures = ['TCN', 'LSTM', 'GRU']
 
 generated_returns = {
     arch: np.random.randn(N_PROCESSES, N_POINTS)
@@ -95,23 +95,23 @@ x = df_returns_real.index
 # plt.show()
 
 generated_processes['TCN'] = np.array(tcn_df_returns_fake[0].cumsum()).transpose()
-generated_returns['TCN'] = tcn_df_returns_fake[0]
+generated_returns['TCN'] = tcn_df_returns_fake
 
 generated_processes['LSTM'] = np.array(lstm_df_returns_fake[0].cumsum()).transpose()
-generated_returns['LSTM'] = lstm_df_returns_fake[0]
+generated_returns['LSTM'] = lstm_df_returns_fake
 
 generated_processes['GRU'] = np.array(gru_df_returns_fake[0].cumsum()).transpose()
-generated_returns['GRU'] = gru_df_returns_fake[0]
+generated_returns['GRU'] = gru_df_returns_fake
 
 
 
 
 # Generate random C-FID values
 # cfid_values = {arch: calculate_fid(df_returns_real, generated_returns[arch]) for arch in architectures}
-cfid_values = {arch: np.random.uniform(1, 10) for arch in architectures}
-cfid_values['TCN'] = calculate_fid(df_returns_real, generated_returns['TCN'])
+cfid_values = {arch: calculate_fid(df_returns_real, generated_returns[arch][GENERATIONS_COUNTER]) for arch in architectures}
+# cfid_values['TCN'] = calculate_fid(df_returns_real, generated_returns['TCN'])
 
-regenerate_button = Button(label="⟳ Regenerate",
+regenerate_button = Button(label="Regenerate",
                            button_type="default",
                            width=100,
                            styles={'margin-left': '20px'})
@@ -135,7 +135,7 @@ generated_source = ColumnDataSource(
 heatmap_x = np.tile(N_START_VALUES, len(N_FINISH_VALUES))
 heatmap_y = np.repeat(N_FINISH_VALUES, len(N_START_VALUES))
 heatmap_real_values = sharp_grid(df_returns_real).flatten()
-heatmap_generated_values = sharp_grid(generated_returns['TCN']).flatten()#heatmap_data_generated['TCN'].flatten()
+heatmap_generated_values = sharp_grid(generated_returns['TCN'][GENERATIONS_COUNTER]).flatten()#heatmap_data_generated['TCN'].flatten()
 
 # heatmap_real_source = ColumnDataSource(data={
 #     'x': heatmap_x,
@@ -480,7 +480,7 @@ def update_architecture(attr, old, new):
     cfid_value.text = f"{cfid_values[selected_arch]:.2e}"
 
     # Update heatmap
-    new_heatmap_data = sharp_grid(generated_returns[selected_arch]).flatten()
+    new_heatmap_data = sharp_grid(generated_returns[selected_arch][GENERATIONS_COUNTER]).flatten()
     heatmap_generated_source.data['values'] = new_heatmap_data
 
 
@@ -500,15 +500,27 @@ architecture_selector.on_change('active', update_architecture)
 def regenerate_callback():
     # Получаем текущую выбранную архитектуру
     selected_arch = architectures[architecture_selector.active]
+    global GENERATIONS_COUNTER
+    global GENERATIONS_AMOUNT
+    GENERATIONS_COUNTER = (GENERATIONS_COUNTER + 1) % GENERATIONS_AMOUNT
 
+    generated_processes['TCN'] = np.array(tcn_df_returns_fake[GENERATIONS_COUNTER].cumsum()).transpose()
+    # generated_returns['TCN'] = tcn_df_returns_fake
+
+    generated_processes['LSTM'] = np.array(lstm_df_returns_fake[GENERATIONS_COUNTER].cumsum()).transpose()
+    # generated_returns['LSTM'] = lstm_df_returns_fake
+
+    generated_processes['GRU'] = np.array(gru_df_returns_fake[GENERATIONS_COUNTER].cumsum()).transpose()
+    # generated_returns['GRU'] = gru_df_returns_fake
     # Генерируем новые данные с новым случайным seed
-    new_seed = np.random.randint(0, 10000)
-    new_returns = TCN_generate_fake_returns(tcn_generator, df_returns_real, seed=new_seed)
+    # new_seed = np.random.randint(0, 10000)
+    # new_returns = TCN_generate_fake_returns(tcn_generator, df_returns_real, seed=new_seed)
+    #
+    # # Обновляем данные для текущей архитектуры
+    # generated_returns[selected_arch] = new_returns
+    # generated_processes[selected_arch] = np.array(new_returns.cumsum()).transpose()
 
-    # Обновляем данные для текущей архитектуры
-    generated_returns[selected_arch] = new_returns
-    generated_processes[selected_arch] = np.array(new_returns.cumsum()).transpose()
-
+    new_returns = generated_returns[selected_arch][GENERATIONS_COUNTER]
     # Обновляем график
     new_data = {'x': x}
     for i in range(N_PROCESSES):
