@@ -12,9 +12,13 @@ from matplotlib import pyplot as plt
 
 from library.constants import DEVICE
 from library.dataset import get_pytorch_datataset
-from library.gan import Generator
+from library.gan import Generator as TCN_Generator
+from library.gan_LSTM import Generator as LSTM_Generator
+from library.gan_GRU import Generator as GRU_Generator
 from library.gan_train_loop import load_gan
-from library.generation import generate_fake_returns
+from library.generation import generate_fake_returns as TCN_generate_fake_returns
+from library.generation_LSTM import generate_fake_returns as LSTM_generate_fake_returns
+from library.generation_GRU import generate_fake_returns as GRU_generate_fake_returns
 
 from fid import calculate_fid
 
@@ -51,11 +55,20 @@ generated_processes = {
     for arch in architectures
 }
 
-generator = Generator(2).to(DEVICE)
-load_gan('TCN', generator, epoch=800)
+tcn_generator = TCN_Generator(2).to(DEVICE)
+load_gan('TCN', tcn_generator, epoch=800)
+tcn_df_returns_fake = TCN_generate_fake_returns(tcn_generator, df_returns_real, seed=0)
 
-df_returns_fake = generate_fake_returns(generator, df_returns_real, seed=0)
-x = df_returns_fake.index
+lstm_generator = LSTM_Generator().to(DEVICE)
+load_gan('LSTM', lstm_generator, epoch=800)
+lstm_df_returns_fake = LSTM_generate_fake_returns(lstm_generator, df_returns_real, seed=0)
+
+
+gru_generator = GRU_Generator().to(DEVICE)
+load_gan('GRU', gru_generator, epoch=800)
+gru_df_returns_fake = GRU_generate_fake_returns(gru_generator, df_returns_real, seed=0)
+
+x = tcn_df_returns_fake.index
 # fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
 #
 # plt.subplot(2, 1, 1)
@@ -65,8 +78,14 @@ x = df_returns_fake.index
 # plt.ylabel('Cumulative log-returns')
 # plt.show()
 
-generated_processes['TCN'] = np.array(df_returns_fake.cumsum()).transpose()
-generated_returns['TCN'] = df_returns_fake
+generated_processes['TCN'] = np.array(tcn_df_returns_fake.cumsum()).transpose()
+generated_returns['TCN'] = tcn_df_returns_fake
+
+generated_processes['LSTM'] = np.array(lstm_df_returns_fake.cumsum()).transpose()
+generated_returns['LSTM'] = lstm_df_returns_fake
+
+generated_processes['GRU'] = np.array(gru_df_returns_fake.cumsum()).transpose()
+generated_returns['GRU'] = gru_df_returns_fake
 
 # Generate strategy returns for the bottom plot
 train_returns = np.cumsum(np.random.randn(N_POINTS))

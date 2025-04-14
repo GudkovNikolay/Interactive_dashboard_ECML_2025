@@ -205,9 +205,13 @@ def load_gan(model_prefix: str, generator=None, discriminator=None, generator_op
             assert file.name.startswith('checkpoint_')
         epochs = [int(file.name.removeprefix('checkpoint_')) for file in files]
         epoch = max(epochs)
+    if hasattr(generator, 'kernel_size'):
+        print(f'Load {epoch} epoch and {generator.kernel_size} kernel_size checkpoint')
+        filename = model_path / f'checkpoint_{epoch}_{generator.kernel_size}'
+    else:
+        print(f'Load {epoch} epoch checkpoint')
+        filename = model_path / f'checkpoint_{epoch}'
 
-    print(f'Load {epoch} epoch and {generator.kernel_size} kernek_size checkpoint')
-    filename = model_path / f'checkpoint_{epoch}_{generator.kernel_size}'
     checkpoint = torch.load(filename)
     assert checkpoint['epoch'] == epoch
 

@@ -18,8 +18,8 @@ class Generator(nn.Module):
     """
 
     # Define noise size
-    NOISE_WINDOW_SIZE = WINDOW_SIZE
-    NOISE_SIZE = NOISE_WINDOW_SIZE * 10
+    # NOISE_WINDOW_SIZE = WINDOW_SIZE
+    NOISE_SIZE = WINDOW_SIZE * 10
 
     # Define number of hidden channels
     HIDDEN_CHANNELS = 100
@@ -33,7 +33,8 @@ class Generator(nn.Module):
         )
 
     def forward(self, x):
-        return self.mlp(x)
+        batch_size = x.shape[0]
+        return self.mlp(x).view(batch_size, N_ASSETS, WINDOW_SIZE)
 
     @classmethod
     def get_noise(cls, batch_size: int) -> torch.tensor:
@@ -43,20 +44,23 @@ class Generator(nn.Module):
         return torch.randn(batch_size, cls.NOISE_SIZE)
 
     @classmethod
-    def get_shifted_noise(cls, batch_size: int) -> torch.tensor:
+    def get_shifted_noise(cls, n_samples: int) -> torch.tensor:
         """
         (batch_size, noise_size, window_size)
         Each observation in batch contains last values from previous batch and new value
         """
-        if batch_size == 1:
-            return cls.get_noise(batch_size)
+        if n_samples == 1:
+            return cls.get_noise(n_samples)
 
         # Generate base noise
-        noise = torch.randn(cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE + batch_size - 1)
-        result = torch.zeros(batch_size, cls.NOISE_SIZE * cls.NOISE_WINDOW_SIZE)
-        for i in range(batch_size):
-            result[i] = torch.concatenate([noise[j, i:i + cls.NOISE_WINDOW_SIZE] for j in range(N_ASSETS)])
-        return result
+        noise = torch.randn(cls.NOISE_SIZE + n_samples - 1)
+        result = torch.zeros(n_samples, cls.NOISE_SIZE)
+        # print(f'noise = {noise.shape}, result = {result.shape}, cls.NOISE_SIZE = {cls.NOISE_SIZE}, n_samples= {n_samples}')
+        for i in range(n_samples):
+            result[i] = noise[i:i + cls.NOISE_SIZE]
+        noise = torch.randn(n_samples, cls.NOISE_SIZE)
+
+        return noise
 
 class Discriminator(nn.Module):
     """

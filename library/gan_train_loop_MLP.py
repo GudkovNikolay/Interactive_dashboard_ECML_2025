@@ -36,12 +36,12 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
         # Generate fake samples from the generator
         # The same noise will be used in Generator and Discriminator training
         z = generator.get_noise(real_samples.shape[0]).to(DEVICE)
-        # print(z.shape)
+        # print('generator samples = ', z.shape, 'real samples = ', real_samples.shape)
         # print(z.shape[0])
         with torch.no_grad():
             fake_samples = generator(z)
-        fake_samples = fake_samples.reshape(z.shape[0], N_ASSETS, -1)
-#         print(fake_samples.shape)
+        # fake_samples = fake_samples.reshape(z.shape[0], N_ASSETS, -1)
+        # print(fake_samples.shape)
         real_labels = torch.ones(real_samples.shape[0]).to(DEVICE)
         fake_labels = torch.zeros(real_samples.shape[0]).to(DEVICE)
 
@@ -66,7 +66,7 @@ def train_epoch(generator, discriminator, generator_optimizer, discriminator_opt
             generator_optimizer.zero_grad()
             # Generate fake samples and compute generator loss
             fake_samples = generator(z)
-            fake_samples = fake_samples.reshape(z.shape[0], N_ASSETS, -1)
+            # fake_samples = fake_samples.reshape(z.shape[0], N_ASSETS, -1)
             generator_loss = loss_fn(discriminator(fake_samples), real_labels)
             generator_loss.backward()
             generator_optimizer.step()

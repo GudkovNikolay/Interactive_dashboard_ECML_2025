@@ -3,7 +3,7 @@ import torch
 from torch import nn
 
 from library.constants import WINDOW_SIZE, N_ASSETS
-from tcn import TemporalBlock
+from library.tcn import TemporalBlock
 
 class Generator(nn.Module):
     """
@@ -29,19 +29,22 @@ class Generator(nn.Module):
         self.linear = nn.Linear(self.HIDDEN_SIZE, WINDOW_SIZE * N_ASSETS)
 
     def forward(self, x):
+        batch_size = x.shape[0]
         # Reshape input for LSTM (batch_size, sequence_length=1, input_size)
         x = x.unsqueeze(1)
         # Pass through LSTM
         lstm_out, _ = self.lstm(x)
         # Take the last output and pass through linear layer
         output = self.linear(lstm_out[:, -1, :])
-        return output
+        return output.view(batch_size, N_ASSETS, WINDOW_SIZE)
 
     @classmethod
     def get_noise(cls, batch_size: int) -> torch.tensor:
         """
         (batch_size, noise_size)
         """
+
+        # print(f'noise = {noise}, shape = {noise.shape}')
         return torch.randn(batch_size, cls.NOISE_SIZE)
 
     @classmethod
@@ -54,10 +57,10 @@ class Generator(nn.Module):
             return cls.get_noise(batch_size)
 
         # Generate base noise
-        noise = torch.randn(cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE + batch_size - 1)
-        result = torch.zeros(batch_size, cls.NOISE_SIZE * cls.NOISE_WINDOW_SIZE)
+        noise = torch.randn(cls.NOISE_SIZE + batch_size - 1)
+        result = torch.zeros(batch_size, cls.NOISE_SIZE)
         for i in range(batch_size):
-            result[i] = torch.concatenate([noise[j, i:i + cls.NOISE_WINDOW_SIZE] for j in range(N_ASSETS)])
+            result[i] = torch.concatenate([noise[i:i + cls.NOISE_SIZE]])
         return result
 
 class Discriminator(nn.Module):
