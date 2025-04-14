@@ -108,7 +108,12 @@ generated_returns['GRU'] = gru_df_returns_fake
 
 # Generate random C-FID values
 # cfid_values = {arch: calculate_fid(df_returns_real, generated_returns[arch]) for arch in architectures}
-cfid_values = {arch: calculate_fid(df_returns_real, generated_returns[arch][GENERATIONS_COUNTER]) for arch in architectures}
+# cfid_values = {arch: calculate_fid(df_returns_real, generated_returns[arch][GENERATIONS_COUNTER]) for arch in architectures}
+
+cfid_values = {'TCN': {'mean': 0.000224809737867745, 'std': 8.750088205863424e-06},
+ 'LSTM': {'mean': 0.0011258203285543058, 'std': 2.1268350228962416e-05},
+ 'GRU': {'mean': 0.0009432847844564321, 'std': 2.8437548273114842e-05}}
+
 # cfid_values['TCN'] = calculate_fid(df_returns_real, generated_returns['TCN'])
 
 regenerate_button = Button(label="Regenerate",
@@ -187,7 +192,7 @@ architecture_label = Div(text="<b>Architecture type</b>",
 
 cfid_label = Div(text="<b>quality of generation (C-FID)</b>",
                  styles={'text-align': 'center'})
-cfid_value = Div(text=f"{cfid_values['TCN']:.2e}",
+cfid_value = Div(text=f"{cfid_values['TCN']['mean']:.2e} ({cfid_values['TCN']['std']:.2e})",
                  styles={
                      'border': '1px solid gray',
                      'border-radius': '5px',
@@ -477,7 +482,7 @@ def update_architecture(attr, old, new):
     generated_source.data = new_data
 
     # Update C-FID value
-    cfid_value.text = f"{cfid_values[selected_arch]:.2e}"
+    cfid_value.text = f"{cfid_values['TCN']['mean']:.2e} ({cfid_values[selected_arch]['std']:.2e})"
 
     # Update heatmap
     new_heatmap_data = sharp_grid(generated_returns[selected_arch][GENERATIONS_COUNTER]).flatten()
