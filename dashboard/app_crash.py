@@ -215,10 +215,11 @@ def create_param_display(text):
                    'margin': '5px auto'
                })
 
+# Список цветов для линий (можно изменить по желанию)
+LINE_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 
-# Create plots with fixed size and no stretching
-# Создаем график с вертикальной чертой
-def create_stock_plot(title, source, split=False):
+# Модифицированная функция создания графиков
+def create_stock_plot(title, source, split=False, legend=False):
     p = figure(
         title=title,
         width=400,
@@ -231,30 +232,50 @@ def create_stock_plot(title, source, split=False):
     if split:
         # Добавляем вертикальную линию разделения
         split_line = Span(location=split_date,
-                          dimension='height',
-                          line_color='red',
-                          line_width=1,
-                          line_dash='dashed')
+                         dimension='height',
+                         line_color='red',
+                         line_width=1,
+                         line_dash='dashed')
         p.add_layout(split_line)
 
-        # Добавляем подписи train/test
-        train_label = Label(x=df_returns_real.index[int(split_idx * 0.4)], y=0.9 * max(real_processes.flatten()),
-                            text='train', text_color='red', text_font_size='10pt')
-        test_label = Label(x=df_returns_real.index[split_idx + int((len(df_returns_real) - split_idx) * 0.1)],
+        # Добавляем подписи train/test (сдвигаем test правее)
+        train_label = Label(x=df_returns_real.index[int(split_idx * 0.4)],
                            y=0.9 * max(real_processes.flatten()),
-                           text='test', text_color='red', text_font_size='10pt')
+                           text='train', text_color='red', text_font_size='10pt')
+        test_label = Label(x=df_returns_real.index[split_idx + int((len(df_returns_real) - split_idx) * 0.3)],  # Сдвиг с 0.1 на 0.3
+                          y=0.9 * max(real_processes.flatten()),
+                          text='test', text_color='red', text_font_size='10pt')
         p.add_layout(train_label)
         p.add_layout(test_label)
 
-    # Добавляем линии для каждого процесса
-    for i in range(N_PROCESSES):
-        p.line('x', f'y{i}', source=source, line_width=2)
+    # Добавляем линии для каждого процесса с разными цветами
+
+
+    if legend:
+        for i in range(N_PROCESSES):
+            p.line('x', f'y{i}', source=source,
+                   line_width=2,
+                   color=LINE_COLORS[i % len(LINE_COLORS)],
+                   legend_label=df_returns_real.columns[i])
+        # Настраиваем легенду
+        p.legend.location = "top_left"
+        p.legend.click_policy = "hide"  # Клик скрывает/показывает линию
+        p.legend.label_text_font_size = "8pt"
+        p.legend.spacing = 1
+        p.legend.padding = 5
+        p.legend.margin = 5
+    else:
+        for i in range(N_PROCESSES):
+            p.line('x', f'y{i}', source=source,
+                   line_width=2,
+                   color=LINE_COLORS[i % len(LINE_COLORS)])
 
     return p
 
-
-real_plot = create_stock_plot("real stocks", real_source, split=True)
+# Создаем графики с новыми настройками
+real_plot = create_stock_plot("real stocks", real_source, split=True, legend=True)
 generated_plot = create_stock_plot("generated stocks", generated_source)
+
 
 
 # Create heatmaps with fixed size
@@ -482,7 +503,7 @@ def update_architecture(attr, old, new):
     generated_source.data = new_data
 
     # Update C-FID value
-    cfid_value.text = f"{cfid_values['TCN']['mean']:.2e} ({cfid_values[selected_arch]['std']:.2e})"
+    cfid_value.text = f"{cfid_values[selected_arch]['mean']:.2e} ({cfid_values[selected_arch]['std']:.2e})"
 
     # Update heatmap
     new_heatmap_data = sharp_grid(generated_returns[selected_arch][GENERATIONS_COUNTER]).flatten()
@@ -622,7 +643,11 @@ header = row(
 )
 
 
-# Top plots block with margin bottom
+# Добавляем легенду между графиками
+legend_div = Div(text="<b>Stock colors legend:</b>",
+                styles={'text-align': 'center', 'margin': '10px 0'})
+
+# Модифицируем блок с графиками
 plots_block = column(
     row(
         real_plot,
@@ -630,7 +655,8 @@ plots_block = column(
         align="center",
         styles={'margin': '0 auto', 'justify-content': 'center'}
     ),
-    styles={'margin-bottom': '40px'}  # Vertical space after this block
+    # legend_div,  # Добавляем легенду между графиками и хитмэпами
+    styles={'margin-bottom': '20px'}  # Уменьшаем отступ
 )
 
 # Heatmaps block with margins
