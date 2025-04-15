@@ -1,341 +1,545 @@
 import numpy as np
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
-from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource, 
-                          TextInput, LinearColorMapper, 
-                          BasicTicker, ColorBar)
+from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource,
+                          TextInput, LinearColorMapper,
+                          BasicTicker, ColorBar, Select, Span, Label, Button, HoverTool)
 from bokeh.plotting import figure
 from bokeh.palettes import Viridis256
 from bokeh.transform import transform
 from bokeh.models.ranges import Range1d
+from datetime import timedelta
 
-real_processes = load_real()
-generated_processes = {
-    arch: np.cumsum(np.random.randn(N_PROCESSES, N_POINTS), axis=1) 
-    for arch in architectures
-}
+from sharp_ratio import sharp_grid, strategy_return
+from library.constants import DEVICE
+from library.dataset import get_pytorch_datataset
+# from library.dataset import get_pytorch_datataset
+from library.gan import Generator as TCN_Generator
+from library.gan_LSTM import Generator as LSTM_Generator
+from library.gan_GRU import Generator as GRU_Generator
+from library.gan_train_loop import load_gan
+from library.generation import generate_fake_returns as TCN_generate_fake_returns
+from library.generation_LSTM import generate_fake_returns as LSTM_generate_fake_returns
+from library.generation_GRU import generate_fake_returns as GRU_generate_fake_returns
 
-# Constants
-N_POINTS = real_processes.shape[0]
-N_PROCESSES = real_processes.shape[1]
-HEATMAP_SIZE = 10
+from fid import calculate_fid
 
-# Generate fixed real Wiener processes
+# ========== Конфигурация ==========
+N_START_VALUES = [20, 40, 60, 80, 100]
+N_FINISH_VALUES = [150, 200, 250, 300, 350, 400]
+GENERATIONS_AMOUNT = 10
+GENERATIONS_COUNTER = 0
+LINE_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+ARCHITECTURES = ['TCN', 'LSTM', 'GRU']
+
+# ========== Заголовок и описание ==========
+dashboard_title = Div(text="""
+<h1 style='text-align: center; margin-bottom: 20px; font-size: 24px;'>
+Interactive Tool for Momentum Strategy Evaluation with GANs
+</h1>
+<p style='text-align: center; margin-bottom: 30px; max-width: 800px; margin-left: auto; margin-right: auto;'>
+This dashboard compares the quality of log-return generations for five Moscow Exchange stocks 
+and evaluates Momentum strategy performance. The GAN architectures (TCN, LSTM, GRU) generate synthetic 
+price series used for strategy optimization. Momentum parameters (n_start, n_finish) define the lookback 
+window for calculating the momentum signal.
+</p>
+""", styles={'margin': '20px 0'})
+
+# ========== Загрузка данных ==========
 np.random.seed(42)
-x = np.linspace(0, 1, N_POINTS)
+df_returns_real = get_pytorch_datataset()[0]
+
+N_POINTS = df_returns_real.shape[0]
+N_PROCESSES = df_returns_real.shape[1]
+
+real_processes = np.array(df_returns_real.cumsum()).transpose()
+
+# Разделение на train/test
+split_idx = int(len(df_returns_real) * 0.8)
+train_data = df_returns_real.iloc[:split_idx]
+test_data = df_returns_real.iloc[split_idx:]
+split_date = df_returns_real.index[split_idx]
+
+# ========== Генерация данных ==========
+tcn_generator = TCN_Generator(2).to(DEVICE)
+load_gan('TCN', tcn_generator, epoch=800)
+tcn_df_returns_fake = [TCN_generate_fake_returns(tcn_generator, df_returns_real, seed=i) for i in
+                       range(GENERATIONS_AMOUNT)]
+
+lstm_generator = LSTM_Generator().to(DEVICE)
+load_gan('LSTM', lstm_generator, epoch=800)
+lstm_df_returns_fake = [LSTM_generate_fake_returns(lstm_generator, df_returns_real, seed=i) for i in
+                        range(GENERATIONS_AMOUNT)]
+
+gru_generator = GRU_Generator().to(DEVICE)
+load_gan('GRU', gru_generator, epoch=800)
+gru_df_returns_fake = [GRU_generate_fake_returns(gru_generator, df_returns_real, seed=i) for i in
+                       range(GENERATIONS_AMOUNT)]
+
+# Инициализация структур данных
+generated_returns = {arch: [] for arch in ARCHITECTURES}
+generated_processes = {arch: [] for arch in ARCHITECTURES}
+
+generated_returns['TCN'] = tcn_df_returns_fake
+generated_returns['LSTM'] = lstm_df_returns_fake
+generated_returns['GRU'] = gru_df_returns_fake
+
+generated_processes['TCN'] = [np.array(df.cumsum()).transpose() for df in tcn_df_returns_fake]
+generated_processes['LSTM'] = [np.array(df.cumsum()).transpose() for df in lstm_df_returns_fake]
+generated_processes['GRU'] = [np.array(df.cumsum()).transpose() for df in gru_df_returns_fake]
 
 
-# Generate different generated processes for each architecture
-architectures = ['TCN', 'MLP', 'LSTM', 'GRU']
+# ========== Визуализация ==========
+def create_stock_plot(title, source, split=False):
+    p = figure(
+        title=title.upper(),
+        width=450,
+        height=300,
+        tools="",
+        toolbar_location=None,
+        x_axis_type='datetime'
+    )
+    p.title.text_font_size = '14pt'  # Правильный способ установки размера шрифта заголовка
 
 
-# Generate strategy returns for the bottom plot
-train_returns = np.cumsum(np.random.randn(N_POINTS))
-fake_returns = np.cumsum(np.random.randn(N_POINTS))
-custom_returns = np.cumsum(np.random.randn(N_POINTS))
+    if split:
+        split_line = Span(location=split_date, dimension='height',
+                          line_color='red', line_width=1, line_dash='dashed')
+        p.add_layout(split_line)
 
-# Generate random C-FID values
-cfid_values = {arch: np.random.uniform(1, 10) for arch in architectures}
+        train_label = Label(x=df_returns_real.index[int(split_idx * 0.4)],
+                            y=0.9 * max(real_processes.flatten()),
+                            text='TRAIN', text_color='red', text_font_size='12pt')
+        test_label = Label(x=df_returns_real.index[split_idx + int((len(df_returns_real) - split_idx) * 0.3)],
+                           y=0.9 * max(real_processes.flatten()),
+                           text='TEST', text_color='red', text_font_size='12pt')
+        p.add_layout(train_label)
+        p.add_layout(test_label)
 
-# Generate heatmap data
-heatmap_data_real = np.random.rand(HEATMAP_SIZE, HEATMAP_SIZE)
-heatmap_data_generated = {
-    arch: np.random.rand(HEATMAP_SIZE, HEATMAP_SIZE)
-    for arch in architectures
-}
+    for i in range(N_PROCESSES):
+        p.line('x', f'y{i}', source=source, line_width=2,
+               color=LINE_COLORS[i % len(LINE_COLORS)],
+               legend_label=f"Stock {i + 1}")
 
-# Generate random optimal parameters
-optimal_params_train = {
-    'n_start': np.random.randint(1, 5),
-    'n_finish': np.random.randint(6, 10)
-}
+    p.legend.location = "top_left"
+    p.legend.click_policy = "hide"
+    p.legend.label_text_font_size = "10pt"
+    return p
 
-optimal_params_generated = {
-    arch: {
-        'n_start': np.random.randint(1, 5),
-        'n_finish': np.random.randint(6, 10)
-    }
-    for arch in architectures
-}
 
-# Create data sources
-real_source = ColumnDataSource(data={'x': x, **{f'y{i}': real_processes[i] for i in range(N_PROCESSES)}})
-generated_source = ColumnDataSource(data={'x': x, **{f'y{i}': generated_processes['TCN'][i] for i in range(N_PROCESSES)}})
+def create_heatmap(title, source, color_mapper=None):
+    # Размеры данных
+    n_x = len(N_START_VALUES)
+    n_y = len(N_FINISH_VALUES)
 
-# For heatmaps
-heatmap_x = np.tile(np.arange(HEATMAP_SIZE), HEATMAP_SIZE)
-heatmap_y = np.repeat(np.arange(HEATMAP_SIZE), HEATMAP_SIZE)
-heatmap_real_values = heatmap_data_real.flatten()
-heatmap_generated_values = heatmap_data_generated['TCN'].flatten()
+    # Размер ячейки (делаем квадратные ячейки)
+    cell_size = min(
+        (max(N_START_VALUES) - min(N_START_VALUES)) / n_x,
+        (max(N_FINISH_VALUES) - min(N_FINISH_VALUES)) / n_y
+    ) * 0.9  # 0.9 для небольшого отступа между ячейками
+
+    # Создаем цветовую карту если не передана
+    if color_mapper is None:
+        values = source.data['values']
+        color_mapper = LinearColorMapper(
+            palette=Viridis256,
+            low=min(values),
+            high=max(values)  # Исправлено: используем high вместо max
+        )
+
+    # Создаем фигуру
+    p = figure(
+        title=title.upper(),
+        x_range=(min(N_START_VALUES) - cell_size / 2, max(N_START_VALUES) + cell_size / 2),
+        y_range=(min(N_FINISH_VALUES) - cell_size / 2, max(N_FINISH_VALUES) + cell_size / 2),
+        tools="hover",
+        toolbar_location=None,
+        width=600,
+        height=400,
+        x_axis_label='n_start (days)',
+        y_axis_label='n_finish (days)'
+    )
+    p.title.text_font_size = '14pt'
+
+    # Рисуем квадратные ячейки без отступов
+    p.rect(
+        x='x', y='y',
+        width=cell_size,
+        height=cell_size,
+        source=source,
+        fill_color={'field': 'values', 'transform': color_mapper},
+        line_color=None
+    )
+
+    # Настройка осей
+    p.xaxis.ticker = N_START_VALUES
+    p.yaxis.ticker = N_FINISH_VALUES
+    p.grid.visible = False
+    p.outline_line_color = None
+
+    # Настройка подсказок
+    p.hover.tooltips = [
+        ("Parameters", "@x days / @y days"),
+        ("Sharpe Ratio", "@values{0.3f}")
+    ]
+
+    return p, color_mapper
+
+
+# ========== Источники данных ==========
+real_source = ColumnDataSource(
+    data={'x': df_returns_real.index, **{f'y{i}': real_processes[i] for i in range(N_PROCESSES)}})
+generated_source = ColumnDataSource(
+    data={'x': df_returns_real.index, **{f'y{i}': generated_processes['TCN'][0][i] for i in range(N_PROCESSES)}})
+
+xx, yy = np.meshgrid(N_START_VALUES, N_FINISH_VALUES)
+heatmap_real_values = sharp_grid(df_returns_real).flatten()
+heatmap_generated_values = sharp_grid(generated_returns['TCN'][0]).flatten()
 
 heatmap_real_source = ColumnDataSource(data={
-    'x': heatmap_x,
-    'y': heatmap_y,
+    'x': xx.T.flatten(),
+    'y': yy.T.flatten(),
     'values': heatmap_real_values
 })
 
 heatmap_generated_source = ColumnDataSource(data={
-    'x': heatmap_x,
-    'y': heatmap_y,
+    'x': xx.T.flatten(),
+    'y': yy.T.flatten(),
     'values': heatmap_generated_values
 })
 
-# For strategy returns plot
+all_values = np.concatenate([heatmap_real_source.data['values'],
+                            heatmap_generated_source.data['values']])
+common_color_mapper = LinearColorMapper(
+    palette=Viridis256,
+    low=min(all_values),
+    high=max(all_values)  # Исправлено: используем high вместо max
+)
+
+# Создаем хитмэпы с общей цветовой шкалой
+heatmap_real, _ = create_heatmap("On Real Data", heatmap_real_source, common_color_mapper)
+heatmap_generated, _ = create_heatmap("On Generated Data", heatmap_generated_source, common_color_mapper)
+
+# Добавляем цветовую шкалу
+color_bar = ColorBar(
+    color_mapper=common_color_mapper,
+    width=20,
+    location=(0, 0),
+    title="Sharpe Ratio",
+    title_text_font_size='10pt'
+)
+
+# Размещаем цветовую шкалу на одном из хитмэпов
+heatmap_generated.add_layout(color_bar, 'right')
+
+# ========== Виджеты ==========
+architecture_selector = RadioButtonGroup(labels=ARCHITECTURES, active=0, width=300)
+architecture_label = Div(text="<b>GAN ARCHITECTURE</b>", styles={'text-align': 'center', 'font-size': '12pt'})
+
+cfid_values = {
+    'TCN': {'mean': 0.000224, 'std': 8.75e-06},
+    'LSTM': {'mean': 0.001126, 'std': 2.13e-05},
+    'GRU': {'mean': 0.000943, 'std': 2.84e-05}
+}
+
+
+def format_cfid(mean, std):
+    if mean == 0 or std == 0:
+        return f"{mean:.2e} ± {std:.2e}"
+    order = int(np.floor(np.log10(abs(mean))))
+    scaled_std = std * (10 ** -order)
+    return f"{mean:.2e} ± {scaled_std:.2f}e{order}"
+
+
+cfid_label = Div(text="<b>GENERATION QUALITY (C-FID)</b>",
+                 styles={'text-align': 'center', 'font-size': '12pt'})
+cfid_value = Div(text=format_cfid(cfid_values['TCN']['mean'], cfid_values['TCN']['std']),
+                 styles={
+                     'border': '1px solid gray',
+                     'border-radius': '5px',
+                     'padding': '5px',
+                     'text-align': 'center',
+                     'width': '200px',
+                     'margin': '0 auto',
+                     'font-size': '11pt'
+                 })
+
+regenerate_button = Button(label="⟳ REGENERATE", button_type="default", width=150,
+                           styles={'margin-left': '20px', 'font-size': '12pt'})
+
+# ========== Параметры стратегии ==========
+optimal_params_train = {
+    'n_start': heatmap_real_source.data['x'][np.argmax(heatmap_real_source.data['values'])],
+    'n_finish': heatmap_real_source.data['y'][np.argmax(heatmap_real_source.data['values'])]
+}
+
+optimal_params_generated = {
+    'n_start': heatmap_generated_source.data['x'][np.argmax(heatmap_generated_source.data['values'])],
+    'n_finish': heatmap_generated_source.data['y'][np.argmax(heatmap_generated_source.data['values'])]
+}
+
+n_start_select = Select(title="n_start (days):", value=str(N_START_VALUES[0]),
+                        options=[str(x) for x in N_START_VALUES], width=150)
+n_finish_select = Select(title="n_finish (days):", value=str(N_FINISH_VALUES[0]),
+                         options=[str(x) for x in N_FINISH_VALUES], width=150)
+
+
+def create_param_block(title, n_start, n_finish, is_custom=False):
+    title_div = Div(text=f"<b>{title.upper()}</b>",
+                    styles={'text-align': 'center', 'margin-bottom': '10px', 'font-size': '12pt'})
+
+    if is_custom:
+        start_widget = n_start_select
+        finish_widget = n_finish_select
+    else:
+        start_widget = Div(text=f"{n_start}", styles={'text-align': 'center', 'border': '1px solid gray',
+                                                      'border-radius': '5px', 'padding': '5px', 'width': '100px',
+                                                      'margin': '5px auto', 'font-size': '11pt'})
+        finish_widget = Div(text=f"{n_finish}", styles={'text-align': 'center', 'border': '1px solid gray',
+                                                        'border-radius': '5px', 'padding': '5px', 'width': '100px',
+                                                        'margin': '5px auto', 'font-size': '11pt'})
+
+    return column(
+        title_div,
+        Div(text="n_start (days):", styles={'text-align': 'center', 'font-size': '11pt'}),
+        start_widget,
+        Div(text="n_finish (days):", styles={'text-align': 'center', 'font-size': '11pt'}),
+        finish_widget,
+        align="center",
+        styles={'margin': '0 20px'}
+    )
+
+
+params_train = create_param_block("Optimized on real data",
+                                  optimal_params_train['n_start'],
+                                  optimal_params_train['n_finish'])
+
+params_generated = create_param_block("Optimized on generated data",
+                                      optimal_params_generated['n_start'],
+                                      optimal_params_generated['n_finish'])
+
+params_custom = create_param_block("Custom parameters", "", "", is_custom=True)
+
+# ========== График стратегии ==========
+train_returns = strategy_return(test_data, nf=optimal_params_train['n_finish'],
+                                ns=optimal_params_train['n_start']).cumsum()
+fake_returns = strategy_return(test_data, nf=optimal_params_generated['n_finish'],
+                               ns=optimal_params_generated['n_start']).cumsum()
+custom_returns = strategy_return(test_data, nf=int(n_finish_select.value),
+                                 ns=int(n_start_select.value)).cumsum()
+
 strategy_source = ColumnDataSource(data={
-    'x': x,
+    'x': test_data.index,
     'train': train_returns,
     'fake': fake_returns,
     'custom': custom_returns
 })
 
-# Create widgets with correct styles attribute
-architecture_selector = RadioButtonGroup(labels=architectures, active=0)
-architecture_label = Div(text="<b>Architecture type</b>", 
-                        styles={'text-align': 'center'})
-
-cfid_label = Div(text="<b>quality of generation (C-FID)</b>", 
-                styles={'text-align': 'center'})
-cfid_value = Div(text=f"{cfid_values['TCN']:.2f}", 
-                styles={
-                    'border': '1px solid gray',
-                    'border-radius': '5px',
-                    'padding': '5px',
-                    'text-align': 'center',
-                    'width': '100px',
-                    'margin': '0 auto'
-                })
-
-# Create styled Div elements for parameter displays
-def create_param_display(text):
-    return Div(text=text, 
-              styles={
-                  'border': '1px solid gray',
-                  'border-radius': '5px',
-                  'padding': '5px',
-                  'text-align': 'center',
-                  'width': '150px',
-                  'margin': '5px auto'
-              })
-
-# Create plots with fixed size and no stretching
-def create_stock_plot(title, source):
-    p = figure(
-        title=title, 
-        width=400, 
-        height=300, 
-        tools="",
-        toolbar_location=None
-    )
-    for i in range(N_PROCESSES):
-        p.line('x', f'y{i}', source=source, line_width=2)
-    return p
-
-real_plot = create_stock_plot("real stocks", real_source)
-generated_plot = create_stock_plot("generated stocks", generated_source)
-
-# Create heatmaps with fixed size
-def create_heatmap(title, source):
-    color_mapper = LinearColorMapper(palette=Viridis256, low=0, high=1)
-    
-    p = figure(
-        title=title, 
-        width=300, 
-        height=300,
-        x_range=Range1d(0, HEATMAP_SIZE, bounds='auto'), 
-        y_range=Range1d(0, HEATMAP_SIZE, bounds='auto'),
-        tools="",
-        toolbar_location=None
-    )
-    
-    p.rect(x='x', y='y', width=1, height=1, source=source,
-           line_color=None, fill_color=transform('values', color_mapper))
-    
-    color_bar = ColorBar(color_mapper=color_mapper, ticker=BasicTicker(),
-                         label_standoff=12, border_line_color=None)
-    p.add_layout(color_bar, 'right')
-    return p
-
-heatmap_title = Div(text="<b>SR for momentum parameters</b>", 
-                   styles={'text-align': 'center'})
-heatmap_real = create_heatmap("On real stocks", heatmap_real_source)
-heatmap_generated = create_heatmap("On generated stocks", heatmap_generated_source)
-
-# Create parameter displays with identical styling
-def create_param_column(title, n_start, n_finish, is_custom=False):
-    title_div = Div(text=f"<b>{title}</b>", 
-                   styles={'text-align': 'center', 'margin-bottom': '10px'})
-    
-    if is_custom:
-        n_start_widget = TextInput(value="", title="n_start:", width=150)
-        n_finish_widget = TextInput(value="", title="n_finish:", width=150)
-    else:
-        n_start_widget = create_param_display(f"n_start = {n_start}")
-        n_finish_widget = create_param_display(f"n_finish = {n_finish}")
-    
-    return column(
-        title_div,
-        n_start_widget,
-        n_finish_widget,
-        align="center",
-        styles={'margin': '0 30px'}  # Increased horizontal spacing
-    )
-
-# Create parameter columns
-params_train = create_param_column(
-    "optimal parameters with train",
-    optimal_params_train['n_start'],
-    optimal_params_train['n_finish']
+strategy_selector = RadioButtonGroup(
+    labels=['REAL PARAMS', 'GEN PARAMS', 'CUSTOM PARAMS'],
+    active=0,
+    width=450
 )
 
-params_generated = create_param_column(
-    "optimal parameters with generated",
-    optimal_params_generated['TCN']['n_start'],
-    optimal_params_generated['TCN']['n_finish']
-)
-
-params_custom = create_param_column(
-    "insert your parameters",
-    "",
-    "",
-    is_custom=True
-)
-
-# Create strategy returns plot with fixed size
-strategy_selector = RadioButtonGroup(labels=['train', 'fake', 'custom'], active=0)
 strategy_plot = figure(
-    title="Strategy returns", 
-    width=800, 
-    height=300, 
-    tools="",
-    toolbar_location=None
+    title="STRATEGY RETURNS (TEST PERIOD)",
+    width=800,
+    height=350,
+    tools="pan,wheel_zoom,box_zoom,reset,save",
+    toolbar_location="right",
+    x_axis_type='datetime',
+    active_scroll="wheel_zoom"
+)
+strategy_plot.title.text_font_size = '14pt'  # Правильный способ установки размера шрифта заголовка
+
+hover = HoverTool(
+    tooltips=[("Date", "@x{%F}"), ("Return", "@$name{0.2f}")],
+    formatters={"@x": "datetime"},
+    mode='vline'
+)
+strategy_plot.add_tools(hover)
+
+strategy_plot.line('x', 'train', source=strategy_source, line_width=3,
+                   color='blue', name="train", legend_label="Optimized on real data")
+strategy_plot.line('x', 'fake', source=strategy_source, line_width=1,
+                   color='gray', alpha=0.2, name="fake", legend_label="Optimized on generated data")
+strategy_plot.line('x', 'custom', source=strategy_source, line_width=1,
+                   color='gray', alpha=0.2, name="custom", legend_label="Custom parameters")
+
+strategy_plot.legend.location = "top_left"
+strategy_plot.legend.click_policy = "hide"
+strategy_plot.legend.label_text_font_size = "10pt"
+
+# ========== Кнопки масштабирования ==========
+zoom_buttons = RadioButtonGroup(
+    labels=["1M", "3M", "6M", "1Y", "ALL"],
+    active=4,
+    width=450,
+    styles={'margin': '10px auto'}
 )
 
-# Initial plot with all lines (train highlighted)
-strategy_plot.line('x', 'train', source=strategy_source, line_width=3, color='blue')
-strategy_plot.line('x', 'fake', source=strategy_source, line_width=1, color='gray', alpha=0.2)
-strategy_plot.line('x', 'custom', source=strategy_source, line_width=1, color='gray', alpha=0.2)
 
-# Callback for architecture selection
+def zoom_callback(attr, old, new):
+    end_date = test_data.index[-1]
+    periods = [30, 90, 180, 365, None]
+
+    if periods[new] is None:
+        start_date = test_data.index[0]
+    else:
+        start_date = end_date - timedelta(days=periods[new])
+
+    strategy_plot.x_range.start = start_date
+    strategy_plot.x_range.end = end_date
+
+    # Автомасштабирование по Y
+    active_strategy = ['train', 'fake', 'custom'][strategy_selector.active]
+    visible_data = [y for x, y in zip(strategy_source.data['x'],
+                                      strategy_source.data[active_strategy])]
+    if visible_data:
+        y_padding = (max(visible_data) - min(visible_data)) * 0.1
+        strategy_plot.y_range.start = min(visible_data) - y_padding
+        strategy_plot.y_range.end = max(visible_data) + y_padding
+
+zoom_buttons.on_change('active', zoom_callback)
+
+    # ========== Callback-функции ==========
+
+
 def update_architecture(attr, old, new):
-    selected_arch = architectures[architecture_selector.active]
-    
-    # Update generated processes
-    new_data = {'x': x}
+    selected_arch = ARCHITECTURES[new]
+
+    # Обновление графиков
+    new_data = {'x': df_returns_real.index}
     for i in range(N_PROCESSES):
-        new_data[f'y{i}'] = generated_processes[selected_arch][i]
+        new_data[f'y{i}'] = generated_processes[selected_arch][GENERATIONS_COUNTER][i]
     generated_source.data = new_data
-    
-    # Update C-FID value
-    cfid_value.text = f"{cfid_values[selected_arch]:.2f}"
-    
-    # Update heatmap
-    new_heatmap_data = heatmap_data_generated[selected_arch].flatten()
-    heatmap_generated_source.data = {
-        'x': heatmap_x,
-        'y': heatmap_y,
-        'values': new_heatmap_data
-    }
-    
-    # Update optimal parameters
-    params_generated.children[1].text = f"n_start = {optimal_params_generated[selected_arch]['n_start']}"
-    params_generated.children[2].text = f"n_finish = {optimal_params_generated[selected_arch]['n_finish']}"
+
+    # Обновление C-FID
+    cfid_value.text = format_cfid(cfid_values[selected_arch]['mean'],
+                                  cfid_values[selected_arch]['std'])
+
+    # Обновление heatmap
+    new_values = sharp_grid(generated_returns[selected_arch][GENERATIONS_COUNTER]).flatten()
+    heatmap_generated_source.data['values'] = new_values
+
+    # Обновление оптимальных параметров
+    max_idx = np.argmax(new_values)
+    new_n_start = heatmap_generated_source.data['x'][max_idx]
+    new_n_finish = heatmap_generated_source.data['y'][max_idx]
+
+    params_generated.children[2].text = str(new_n_start)
+    params_generated.children[4].text = str(new_n_finish)
+
+    # Обновление стратегии
+    new_fake_returns = strategy_return(test_data, nf=new_n_finish, ns=new_n_start).cumsum()
+    strategy_source.data['fake'] = new_fake_returns
+
 
 architecture_selector.on_change('active', update_architecture)
 
-# Callback for strategy selection
-def update_strategy(attr, old, new):
-    selected = strategy_selector.active
-    
-    # Reset all lines to gray and thin
-    strategy_plot.renderers[0].glyph.line_width = 1
-    strategy_plot.renderers[0].glyph.line_alpha = 0.2
-    strategy_plot.renderers[0].glyph.line_color = 'gray'
-    
-    strategy_plot.renderers[1].glyph.line_width = 1
-    strategy_plot.renderers[1].glyph.line_alpha = 0.2
-    strategy_plot.renderers[1].glyph.line_color = 'gray'
-    
-    strategy_plot.renderers[2].glyph.line_width = 1
-    strategy_plot.renderers[2].glyph.line_alpha = 0.2
-    strategy_plot.renderers[2].glyph.line_color = 'gray'
-    
-    # Highlight selected line
-    if selected == 0:  # train
-        strategy_plot.renderers[0].glyph.line_width = 3
-        strategy_plot.renderers[0].glyph.line_alpha = 1
-        strategy_plot.renderers[0].glyph.line_color = 'blue'
-    elif selected == 1:  # fake
-        strategy_plot.renderers[1].glyph.line_width = 3
-        strategy_plot.renderers[1].glyph.line_alpha = 1
-        strategy_plot.renderers[1].glyph.line_color = 'green'
-    else:  # custom
-        strategy_plot.renderers[2].glyph.line_width = 3
-        strategy_plot.renderers[2].glyph.line_alpha = 1
-        strategy_plot.renderers[2].glyph.line_color = 'red'
 
-strategy_selector.on_change('active', update_strategy)
+def regenerate_callback():
+    global GENERATIONS_COUNTER
+    GENERATIONS_COUNTER = (GENERATIONS_COUNTER + 1) % GENERATIONS_AMOUNT
+    update_architecture(None, None, architecture_selector.active)
 
-# Layout with vertical spacing between blocks
+
+regenerate_button.on_click(regenerate_callback)
+
+
+def update_custom_params(attr, old, new):
+    try:
+        n_start = int(n_start_select.value)
+        n_finish = int(n_finish_select.value)
+        custom_returns = strategy_return(test_data, nf=n_finish, ns=n_start).cumsum()
+        strategy_source.data['custom'] = custom_returns
+    except Exception as e:
+        print(f"Error updating custom strategy: {e}")
+
+
+n_start_select.on_change('value', update_custom_params)
+n_finish_select.on_change('value', update_custom_params)
+
+
+def update_strategy_display(attr, old, new):
+    # Сброс всех линий
+    for renderer in strategy_plot.renderers:
+        if hasattr(renderer, 'glyph'):
+            renderer.glyph.line_width = 1
+            renderer.glyph.line_alpha = 0.2
+            renderer.glyph.line_color = 'gray'
+
+    # Выделение активной стратегии
+    active_strategy = ['train', 'fake', 'custom'][new]
+    colors = ['blue', 'green', 'red']
+
+    strategy_plot.renderers[new].glyph.line_width = 3
+    strategy_plot.renderers[new].glyph.line_alpha = 1
+    strategy_plot.renderers[new].glyph.line_color = colors[new]
+
+    # Автомасштабирование при переключении
+    zoom_callback(None, None, zoom_buttons.active)
+
+
+strategy_selector.on_change('active', update_strategy_display)
+
+# ========== Компоновка ==========
 header = row(
-    column(architecture_label, architecture_selector, 
-           styles={'margin': '0 auto'}),
-    column(cfid_label, cfid_value, 
-           styles={'margin': '0 auto'}),
+    column(architecture_label, architecture_selector, styles={'margin': '0 auto'}),
+    regenerate_button,
+    column(cfid_label, cfid_value, styles={'margin': '0 auto'}),
     align="center",
-    styles={'justify-content': 'center'}
+    styles={'justify-content': 'center', 'margin': '20px 0'}
 )
 
-# Top plots block with margin bottom
 plots_block = column(
     row(
-        real_plot, 
-        generated_plot,
+        create_stock_plot("Real Stocks", real_source, split=True),
+        create_stock_plot("Generated Stocks", generated_source),
         align="center",
-        styles={'margin': '0 auto', 'justify-content': 'center'}
+        styles={'justify-content': 'center'}
     ),
-    styles={'margin-bottom': '40px'}  # Vertical space after this block
+    styles={'margin': '20px 0'}
 )
 
-# Heatmaps block with margins
 heatmaps_block = column(
-    heatmap_title,
+    Div(text="<b>SHARPE RATIO BY MOMENTUM PARAMETERS</b>",
+        styles={'text-align': 'center', 'font-size': '14pt', 'margin': '10px 0'}),
     row(
-        heatmap_real, 
+        heatmap_real,
         heatmap_generated,
         align="center",
-        styles={'margin': '0 auto', 'justify-content': 'center'}
+        styles={'justify-content': 'center'}
     ),
-    align="center",
-    styles={'margin': '40px auto'}  # Vertical space around this block
+    styles={'margin': '30px 0'}
 )
 
-# Parameters block with increased horizontal spacing
 params_block = row(
     params_train,
     params_generated,
     params_custom,
     align="center",
-    styles={'justify-content': 'center', 'margin': '40px auto'}
+    styles={'justify-content': 'center', 'margin': '30px 0'}
 )
 
-# Strategy plot block with margin top
 strategy_block = column(
     strategy_selector,
+    zoom_buttons,
     strategy_plot,
     align="center",
-    styles={'margin': '40px auto 0'}  # Space above this block
+    styles={'margin': '30px 0'}
 )
 
-# Main dashboard layout
 dashboard = column(
+    dashboard_title,
     header,
     plots_block,
     heatmaps_block,
     params_block,
     strategy_block,
     align="center",
-    styles={'margin': '0 auto', 'max-width': '1200px'}
+    styles={'margin': '20px auto', 'max-width': '1300px'}
 )
 
 curdoc().add_root(dashboard)
-curdoc().title = "Stocks Generation Dashboard"
+curdoc().title = "Interactive Momentum Strategy Tool with GANs"
