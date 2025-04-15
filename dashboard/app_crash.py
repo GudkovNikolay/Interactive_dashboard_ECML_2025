@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource,
@@ -32,6 +33,11 @@ N_FINISH_VALUES = [150, 200, 250, 300, 350, 400]
 # Generate fixed real Wiener processes
 np.random.seed(42)
 
+
+# Кол-во генераций доходностей
+GENERATIONS_AMOUNT = 100
+GENERATIONS_COUNTER = 0
+
 from library.constants import N_ASSETS
 
 df_returns_real = get_pytorch_datataset()[0]#.cumsum()
@@ -50,8 +56,7 @@ N_POINTS = df_returns_real.shape[0]
 N_PROCESSES = df_returns_real.shape[1]
 HEATMAP_SIZE = 10
 
-GENERATIONS_AMOUNT = 10
-GENERATIONS_COUNTER = 0
+
 # Generate fixed real Wiener processes
 # np.random.seed(42)
 # df_returns_real = get_pytorch_datataset()[0]
@@ -72,42 +77,24 @@ generated_processes = {
     for arch in architectures
 }
 
-tcn_generator = TCN_Generator(2).to(DEVICE)
-load_gan('TCN', tcn_generator, epoch=800)
-tcn_df_returns_fake = [TCN_generate_fake_returns(tcn_generator, df_returns_real, seed=i) for i in range(GENERATIONS_AMOUNT)]
-
-lstm_generator = LSTM_Generator().to(DEVICE)
-load_gan('LSTM', lstm_generator, epoch=800)
-lstm_df_returns_fake = [LSTM_generate_fake_returns(lstm_generator, df_returns_real, seed=i) for i in range(GENERATIONS_AMOUNT)]
-
-
-gru_generator = GRU_Generator().to(DEVICE)
-load_gan('GRU', gru_generator, epoch=800)
-gru_df_returns_fake = [GRU_generate_fake_returns(gru_generator, df_returns_real, seed=i) for i in range(GENERATIONS_AMOUNT)]
-
+tcn_df_returns_fake = np.load('dashboard/generated_returns/tcn_df_returns_fake.npy')
+lstm_df_returns_fake = np.load('dashboard/generated_returns/lstm_df_returns_fake.npy')
+gru_df_returns_fake = np.load('dashboard/generated_returns/gru_df_returns_fake.npy')
 
 x = df_returns_real.index
 
-# fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
-#
-# plt.subplot(2, 1, 1)
+# print('HERE')
+# print(tcn_df_returns_fake[0].cumsum(axis=1).transpose().shape)
+# print('HERE')
 
-# df_returns_fake.cumsum().plot(ax=ax2)
-# plt.title('Fake')
-# plt.ylabel('Cumulative log-returns')
-# plt.show()
+generated_processes['TCN'] = tcn_df_returns_fake[0].cumsum(axis=1).transpose()
+generated_returns['TCN'] = [pd.DataFrame(tcn_df_returns_fake[i], index=df_returns_real.index) for i in range(GENERATIONS_AMOUNT)]
 
-generated_processes['TCN'] = np.array(tcn_df_returns_fake[0].cumsum()).transpose()
-generated_returns['TCN'] = tcn_df_returns_fake
+generated_processes['LSTM'] = lstm_df_returns_fake[0].cumsum(axis=1).transpose()
+generated_returns['LSTM'] = [pd.DataFrame(lstm_df_returns_fake[i], index=df_returns_real.index) for i in range(GENERATIONS_AMOUNT)]
 
-generated_processes['LSTM'] = np.array(lstm_df_returns_fake[0].cumsum()).transpose()
-generated_returns['LSTM'] = lstm_df_returns_fake
-
-generated_processes['GRU'] = np.array(gru_df_returns_fake[0].cumsum()).transpose()
-generated_returns['GRU'] = gru_df_returns_fake
-
-
-
+generated_processes['GRU'] = gru_df_returns_fake[0].cumsum(axis=1).transpose()
+generated_returns['GRU'] = [pd.DataFrame(gru_df_returns_fake[i], index=df_returns_real.index) for i in range(GENERATIONS_AMOUNT)]
 
 # Generate random C-FID values
 # cfid_values = {arch: calculate_fid(df_returns_real, generated_returns[arch]) for arch in architectures}

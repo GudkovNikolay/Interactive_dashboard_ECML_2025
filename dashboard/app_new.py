@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource,
@@ -27,7 +28,7 @@ from fid import calculate_fid
 # ========== Конфигурация ==========
 N_START_VALUES = [20, 40, 60, 80, 100]
 N_FINISH_VALUES = [150, 200, 250, 300, 350, 400]
-GENERATIONS_AMOUNT = 10
+GENERATIONS_AMOUNT = 100
 GENERATIONS_COUNTER = 0
 LINE_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 ARCHITECTURES = ['TCN', 'LSTM', 'GRU']
@@ -61,34 +62,26 @@ test_data = df_returns_real.iloc[split_idx:]
 split_date = df_returns_real.index[split_idx]
 
 # ========== Генерация данных ==========
-tcn_generator = TCN_Generator(2).to(DEVICE)
-load_gan('TCN', tcn_generator, epoch=800)
-tcn_df_returns_fake = [TCN_generate_fake_returns(tcn_generator, df_returns_real, seed=i) for i in
-                       range(GENERATIONS_AMOUNT)]
 
-lstm_generator = LSTM_Generator().to(DEVICE)
-load_gan('LSTM', lstm_generator, epoch=800)
-lstm_df_returns_fake = [LSTM_generate_fake_returns(lstm_generator, df_returns_real, seed=i) for i in
-                        range(GENERATIONS_AMOUNT)]
-
-gru_generator = GRU_Generator().to(DEVICE)
-load_gan('GRU', gru_generator, epoch=800)
-gru_df_returns_fake = [GRU_generate_fake_returns(gru_generator, df_returns_real, seed=i) for i in
-                       range(GENERATIONS_AMOUNT)]
+tcn_df_returns_fake = np.load('dashboard/generated_returns/tcn_df_returns_fake.npy')
+lstm_df_returns_fake = np.load('dashboard/generated_returns/lstm_df_returns_fake.npy')
+gru_df_returns_fake = np.load('dashboard/generated_returns/gru_df_returns_fake.npy')
 
 # Инициализация структур данных
 generated_returns = {arch: [] for arch in ARCHITECTURES}
 generated_processes = {arch: [] for arch in ARCHITECTURES}
 
-generated_returns['TCN'] = tcn_df_returns_fake
-generated_returns['LSTM'] = lstm_df_returns_fake
-generated_returns['GRU'] = gru_df_returns_fake
+generated_returns['TCN'] = [pd.DataFrame(tcn_df_returns_fake[i], index=df_returns_real.index) for i in range(GENERATIONS_AMOUNT)]
+generated_returns['LSTM'] = [pd.DataFrame(lstm_df_returns_fake[i], index=df_returns_real.index) for i in range(GENERATIONS_AMOUNT)]
+generated_returns['GRU'] = [pd.DataFrame(gru_df_returns_fake[i], index=df_returns_real.index) for i in range(GENERATIONS_AMOUNT)]
 
-generated_processes['TCN'] = [np.array(df.cumsum()).transpose() for df in tcn_df_returns_fake]
-generated_processes['LSTM'] = [np.array(df.cumsum()).transpose() for df in lstm_df_returns_fake]
-generated_processes['GRU'] = [np.array(df.cumsum()).transpose() for df in gru_df_returns_fake]
-
-
+generated_processes['TCN'] = np.transpose(tcn_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1))
+generated_processes['LSTM'] = np.transpose(lstm_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1))
+generated_processes['GRU'] = np.transpose(gru_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1))
+# print('HERE')
+# print(np.transpose(gru_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1)).shape)#(100, 2576, 5)
+#
+# print('HERE')
 # ========== Визуализация ==========
 def create_stock_plot(title, source, split=False):
     p = figure(

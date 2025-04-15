@@ -178,7 +178,7 @@ def load_gan(model_prefix: str, generator=None, discriminator=None, generator_op
     Load latest epoch if not specified
     """
     model_path = SAVE_PATH / model_prefix
-    print(model_path)
+    # print(model_path)
     assert model_path.exists()
     if epoch is None:
         # Find latest checkpoint

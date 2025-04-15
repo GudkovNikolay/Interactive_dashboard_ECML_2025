@@ -37,7 +37,7 @@ def generate_fake_returns(generator, df_returns_real: pd.DataFrame, seed: int) -
     dfs = generate_samples(generator, df_returns_real.columns, len(df_returns_real) - WINDOW_SIZE + 1)
     # Merge generated DataFrames
     df_returns_fake = _merge_generated_dfs(dfs, df_returns_real)
-    print('shape after merg', df_returns_fake.shape)
+    # print('shape after merg', df_returns_fake.shape)
     # Normalize fake returns
     df_returns_fake = _normalize_returns(df_returns_fake, df_returns_real)
     return df_returns_fake
@@ -49,9 +49,9 @@ def _merge_generated_dfs(dfs: list[pd.DataFrame], df_returns_real: pd.DataFrame)
     """
     # dfs[100].cumsum().plot()
 
-    print(f"dfs.shape = {dfs.shape}")
+    # print(f"dfs.shape = {dfs.shape}")
     result = np.concatenate(np.array(dfs), axis=1)
-    print(f"result.shape = {result.shape}")
+#     print(f"result.shape = {result.shape}")
     dfs = pd.DataFrame(result[:, :df_returns_real.shape[0]].transpose(), columns=df_returns_real.columns)
     # result = [dfs[0]]
     # for i, df in enumerate(dfs[1:]):
@@ -66,7 +66,7 @@ def _normalize_returns(df_returns_fake: pd.DataFrame, df_returns_real: pd.DataFr
     """
     Normalize generated samples to have the same mean and standard deviation as real returns
     """
-    print(df_returns_fake)
+    # print(df_returns_fake)
     # Normalize to N(0, 1)
     df_returns_fake = df_returns_fake.sub(df_returns_fake.mean(), axis=1)
     df_returns_fake = df_returns_fake.div(df_returns_fake.std(), axis=1)

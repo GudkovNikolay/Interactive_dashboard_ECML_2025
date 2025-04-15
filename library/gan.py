@@ -51,7 +51,7 @@ class Generator(nn.Module):
         Each observation in batch contains last values from previous batch and new value
         """
         if batch_size == 1:
-            print(torch.mean(cls.get_noise(batch_size)))
+            # print(torch.mean(cls.get_noise(batch_size)))
             return cls.get_noise(batch_size)
 
         # Generate base noise
@@ -59,8 +59,8 @@ class Generator(nn.Module):
         result = torch.zeros(batch_size, cls.NOISE_SIZE, cls.NOISE_WINDOW_SIZE)
         for i in range(batch_size):
             result[i] = noise[:, i:i + cls.NOISE_WINDOW_SIZE]
-            if i == 0:
-                print(torch.mean(noise[:, i:i + cls.NOISE_WINDOW_SIZE]))
+            # if i == 0:
+            #     print(torch.mean(noise[:, i:i + cls.NOISE_WINDOW_SIZE]))
         return result
 
 
