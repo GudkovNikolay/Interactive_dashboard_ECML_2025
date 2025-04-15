@@ -4,6 +4,9 @@ from bokeh.layouts import column, row
 from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource,
                           TextInput, LinearColorMapper,
                           BasicTicker, ColorBar, Select, Span, Label, Button)
+
+from bokeh.models import HoverTool
+
 from bokeh.plotting import figure
 from bokeh.palettes import Viridis256
 from bokeh.transform import transform
@@ -190,15 +193,40 @@ architecture_selector = RadioButtonGroup(labels=architectures, active=0)
 architecture_label = Div(text="<b>Architecture type</b>",
                          styles={'text-align': 'center'})
 
+
+def format_cfid(mean, std):
+    if mean == 0 or std == 0:
+        return f"{mean:.2e} ± {std:.2e}"
+
+    # Определяем порядок среднего значения
+    mean_order = int(np.floor(np.log10(abs(mean))))
+
+    # Масштабируем стандартное отклонение к порядку среднего
+    scaled_std = std * (10 ** -mean_order)
+
+    # Форматируем с учетом нужного количества значащих цифр
+    mean_str = f"{mean:.2e}"
+
+    # Для стандартного отклонения:
+    # - Если значение < 1.0, показываем 2 значащих цифры
+    # - Иначе показываем 2 знака после запятой
+    if scaled_std < 1.0:
+        std_str = f"{scaled_std:.2g}".lstrip('0')
+    else:
+        std_str = f"{scaled_std:.2f}"
+
+    # Собираем окончательную строку
+    return f"{mean_str} ± {std_str}e{mean_order}"
+
 cfid_label = Div(text="<b>quality of generation (C-FID)</b>",
                  styles={'text-align': 'center'})
-cfid_value = Div(text=f"{cfid_values['TCN']['mean']:.2e} ({cfid_values['TCN']['std']:.2e})",
+cfid_value = Div(text=format_cfid(cfid_values['TCN']['mean'], cfid_values['TCN']['std']),
                  styles={
                      'border': '1px solid gray',
                      'border-radius': '5px',
                      'padding': '5px',
                      'text-align': 'center',
-                     'width': '100px',
+                     'width': '200px',
                      'margin': '0 auto'
                  })
 
@@ -477,20 +505,85 @@ strategy_source = ColumnDataSource(data={
 
 # Create strategy returns plot with fixed size
 strategy_selector = RadioButtonGroup(labels=['train', 'fake', 'custom'], active=0)
+
+# Модифицируем создание графика стратегий
 strategy_plot = figure(
     title="Strategy returns",
     width=800,
     height=300,
-    tools="",
-    toolbar_location=None,
+    tools="pan,wheel_zoom,box_zoom,reset,save",  # Инструменты масштабирования
+    toolbar_location="right",
     x_axis_type='datetime',
+    active_scroll="wheel_zoom",
 )
 
-# Initial plot with all lines (train highlighted)
-strategy_plot.line('x', 'train', source=strategy_source, line_width=3, color='blue')
-strategy_plot.line('x', 'fake', source=strategy_source, line_width=1, color='gray', alpha=0.2)
-strategy_plot.line('x', 'custom', source=strategy_source, line_width=1, color='gray', alpha=0.2)
+# Добавляем HoverTool с правильными форматировщиками
+hover = HoverTool(
+    tooltips=[
+        ("Date", "@x{%F}"),
+        ("Value", "@$name{0.2f}")
+    ],
+    formatters={
+        "@x": "datetime",  # Формат даты
+    },
+    mode='vline'  # Вертикальная линия при наведении
+)
+strategy_plot.add_tools(hover)
 
+# Добавляем линии стратегий с именами
+strategy_plot.line('x', 'train', source=strategy_source,
+                  line_width=3, color='blue', name="Train strategy")
+strategy_plot.line('x', 'fake', source=strategy_source,
+                  line_width=1, color='gray', alpha=0.2, name="Generated strategy")
+strategy_plot.line('x', 'custom', source=strategy_source,
+                  line_width=1, color='gray', alpha=0.2, name="Custom strategy")
+
+
+
+# Настраиваем инструменты масштабирования
+strategy_plot.toolbar.autohide = True  # Автоскрытие панели инструментов
+strategy_plot.x_range.range_padding = 0.02  # Отступ по оси X
+strategy_plot.y_range.range_padding = 0.1  # Отступ по оси Y
+
+# Кнопки масштабирования (оставляем без изменений)
+zoom_buttons = RadioButtonGroup(
+    labels=["1M", "3M", "6M", "1Y", "All"],
+    active=4,
+    width=300,
+    styles={'margin': '5px auto'}
+)
+
+
+# Callback для кнопок масштабирования (оставляем без изменений)
+def zoom_callback(attr, old, new):
+    from datetime import timedelta
+    end_date = strategy_source.data['x'][-1]
+
+    if zoom_buttons.active == 0:  # 1 месяц
+        start_date = end_date - timedelta(days=30)
+    elif zoom_buttons.active == 1:  # 3 месяца
+        start_date = end_date - timedelta(days=90)
+    elif zoom_buttons.active == 2:  # 6 месяцев
+        start_date = end_date - timedelta(days=180)
+    elif zoom_buttons.active == 3:  # 1 год
+        start_date = end_date - timedelta(days=365)
+    else:  # Все данные
+        start_date = strategy_source.data['x'][0]
+
+    strategy_plot.x_range.start = start_date
+    strategy_plot.x_range.end = end_date
+
+    # Автомасштабирование по Y
+    visible_data = [y for x, y in zip(strategy_source.data['x'],
+                                      strategy_source.data[strategy_selector.labels[strategy_selector.active]])
+                    if start_date <= x <= end_date]
+    if visible_data:
+        y_padding = (max(visible_data) - min(visible_data)) * 0.1
+        strategy_plot.y_range.start = min(visible_data) - y_padding
+        strategy_plot.y_range.end = max(visible_data) + y_padding
+
+
+zoom_buttons.on_change('active', zoom_callback)
 
 # Callback for architecture selection
 def update_architecture(attr, old, new):
@@ -503,7 +596,10 @@ def update_architecture(attr, old, new):
     generated_source.data = new_data
 
     # Update C-FID value
-    cfid_value.text = f"{cfid_values[selected_arch]['mean']:.2e} ({cfid_values[selected_arch]['std']:.2e})"
+    # cfid_value.text = f"{cfid_values[selected_arch]['mean']:.2e} ({cfid_values[selected_arch]['std']:.2e})"
+    mean = cfid_values[selected_arch]['mean']
+    std = cfid_values[selected_arch]['std']
+    cfid_value.text = format_cfid(mean, std)
 
     # Update heatmap
     new_heatmap_data = sharp_grid(generated_returns[selected_arch][GENERATIONS_COUNTER]).flatten()
@@ -681,12 +777,13 @@ params_block = row(
     styles={'justify-content': 'center', 'margin': '40px auto'}
 )
 
-# Strategy plot block with margin top
+# Модифицируем блок с графиком стратегий
 strategy_block = column(
     strategy_selector,
+    zoom_buttons,  # Добавляем кнопки масштабирования
     strategy_plot,
     align="center",
-    styles={'margin': '40px auto 0'}  # Space above this block
+    styles={'margin': '40px auto 0'}
 )
 
 # Main dashboard layout
