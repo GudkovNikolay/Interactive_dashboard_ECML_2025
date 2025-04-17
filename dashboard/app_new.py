@@ -186,7 +186,7 @@ generated_source = ColumnDataSource(
     data={'x': df_returns_real.index, **{f'y{i}': generated_processes['TCN'][0][i] for i in range(N_PROCESSES)}})
 
 xx, yy = np.meshgrid(N_START_VALUES, N_FINISH_VALUES)
-heatmap_real_values = sharp_grid(df_returns_real).flatten()
+heatmap_real_values = sharp_grid(train_data).flatten()
 heatmap_generated_values = sharp_grid(generated_returns['TCN'][0]).flatten()
 
 heatmap_real_source = ColumnDataSource(data={
