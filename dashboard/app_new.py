@@ -63,9 +63,9 @@ split_date = df_returns_real.index[split_idx]
 
 # ========== Генерация данных ==========
 
-tcn_df_returns_fake = np.load('dashboard/generated_returns/tcn_df_returns_fake.npy')
-lstm_df_returns_fake = np.load('dashboard/generated_returns/lstm_df_returns_fake.npy')
-gru_df_returns_fake = np.load('dashboard/generated_returns/gru_df_returns_fake.npy')
+tcn_df_returns_fake = np.load('generated_returns/tcn_df_returns_fake.npy')
+lstm_df_returns_fake = np.load('generated_returns/lstm_df_returns_fake.npy')
+gru_df_returns_fake = np.load('generated_returns/gru_df_returns_fake.npy')
 
 # Инициализация структур данных
 generated_returns = {arch: [] for arch in ARCHITECTURES}
