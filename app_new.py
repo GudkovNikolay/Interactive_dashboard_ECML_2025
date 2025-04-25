@@ -369,11 +369,10 @@ def get_optimal_params(heatmap_source, N_START_VALUES, N_FINISH_VALUES):
   values = heatmap_source.data['values']
   max_index_flat = np.argmax(values)  # Индекс максимального значения в плоском массиве
   num_start_values = len(N_START_VALUES) # Число возможных значений n_finish
-
+  num_finish_values = len(N_FINISH_VALUES)
   # Преобразуем плоский индекс в индексы по осям x (n_start) и y (n_finish)
-  index_n_start = max_index_flat // num_start_values  # Деление нацело для получения индекса n_start
-  index_n_finish = max_index_flat % num_start_values  # Остаток от деления для получения индекса n_finish
-
+  index_n_start = max_index_flat // num_finish_values  # Деление нацело для получения индекса n_start
+  index_n_finish = max_index_flat % num_finish_values  # Остаток от деления для получения индекса n_finish
   optimal_params = {
       'n_start': N_START_VALUES[index_n_start],
       'n_finish': N_FINISH_VALUES[index_n_finish]
@@ -532,9 +531,12 @@ def update_architecture(attr, old, new):
     heatmap_generated_source.data['values'] = new_values
 
     # Обновление оптимальных параметров
+
+    optimal_params_generated = get_optimal_params(heatmap_generated_source, N_START_VALUES, N_FINISH_VALUES)
+
     max_idx = np.argmax(new_values)
-    new_n_start = heatmap_generated_source.data['x'][max_idx]
-    new_n_finish = heatmap_generated_source.data['y'][max_idx]
+    new_n_start = optimal_params_generated["n_start"]
+    new_n_finish = optimal_params_generated["n_finish"]
 
     params_generated.children[2].text = str(new_n_start)
     params_generated.children[4].text = str(new_n_finish)
