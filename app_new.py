@@ -44,7 +44,7 @@ and evaluates Momentum strategy performance. The GAN architectures (TCN, LSTM, G
 price series used for strategy optimization. Momentum parameters (n_start, n_finish) define the lookback 
 window for calculating the momentum signal.
 </p>
-""", styles={'margin': '20px 0 0 190px'})
+""", styles={'margin': '20px 0 0 150px'})
 
 # ========== Загрузка данных ==========
 np.random.seed(42)
@@ -596,7 +596,7 @@ strategy_selector.on_change('active', update_strategy_display)
 
 # ========== Компоновка ==========
 header = row(
-    column(architecture_label, architecture_selector, styles={'margin': '0 auto'}),
+    column(architecture_label, architecture_selector, styles={'margin': '0 0 0 50px'}),
     regenerate_button,
     column(cfid_label, cfid_value, styles={'margin': '0 auto'}),
     align="center",
@@ -610,17 +610,17 @@ plots_block = column(
         align="center",
         styles={'justify-content': 'center'}
     ),
-    styles={'margin': '20px 0 0 190px'}
+    styles={'margin': '20px 0 0 90px'}
 )
 
 heatmaps_block = column(
-    Div(text="<b>SHARPE RATIO BY MOMENTUM PARAMETERS</b>",
-        styles={'text-align': 'center', 'font-size': '14pt', 'margin': '10px 0'}),
+    Div(text="<b>Sharpe Ratio by Momentum Parameters</b>",
+        styles={'text-align': 'center', 'font-size': '14pt', 'margin': '10px 0 0 380px'}),
     row(
         heatmap_real,
         heatmap_generated,
         align="center",
-        styles={'justify-content': 'center'}
+        styles={'justify-content': 'center', 'margin': '10px 0 0 10px'}
     ),
     styles={'margin': '30px 0'}
 )
