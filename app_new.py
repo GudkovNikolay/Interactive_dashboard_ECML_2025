@@ -44,7 +44,7 @@ and evaluates Momentum strategy performance. The GAN architectures (TCN, LSTM, G
 price series used for strategy optimization. Momentum parameters (n_start, n_finish) define the lookback 
 window for calculating the momentum signal.
 </p>
-""", styles={'margin': '20px 0'})
+""", styles={'margin': '20px 0 0 190px'})
 
 # ========== Загрузка данных ==========
 np.random.seed(42)
@@ -258,7 +258,7 @@ cfid_value = Div(text=format_cfid(cfid_values['TCN']['mean'], cfid_values['TCN']
                  })
 
 regenerate_button = Button(label="⟳ REGENERATE", button_type="default", width=150,
-                           styles={'margin-left': '20px', 'font-size': '12pt'})
+                           styles={'margin-left': '20px', 'margin-top': '37px', 'font-size': '12pt'})
 
 # ========== Параметры стратегии ==========
 optimal_params_train = {
@@ -492,7 +492,7 @@ plots_block = column(
         align="center",
         styles={'justify-content': 'center'}
     ),
-    styles={'margin': '20px 0'}
+    styles={'margin': '20px 0 0 190px'}
 )
 
 heatmaps_block = column(
