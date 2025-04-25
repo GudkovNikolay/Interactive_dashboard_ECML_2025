@@ -3,7 +3,7 @@ import pandas as pd
 from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource,
-                          TextInput, LinearColorMapper,
+                          TextInput, LinearColorMapper, FixedTicker, BasicTicker,
                           BasicTicker, ColorBar, Select, Span, Label, Button, HoverTool)
 from bokeh.plotting import figure
 from bokeh.palettes import Viridis256
@@ -120,84 +120,174 @@ def create_stock_plot(title, source, split=False):
     return p
 
 
-def create_heatmap(title, source, color_mapper=None):
-    # Размеры данных
-    n_x = len(N_START_VALUES)
-    n_y = len(N_FINISH_VALUES)
+data = np.array([[i * j for j in range(9)] for i in range(6)])
 
-    # Размер ячейки (делаем квадратные ячейки)
-    cell_size = min(
-        (max(N_START_VALUES) - min(N_START_VALUES)) / n_x,
-        (max(N_FINISH_VALUES) - min(N_FINISH_VALUES)) / n_y
-    ) * 0.9  # 0.9 для небольшого отступа между ячейками
 
-    # Создаем цветовую карту если не передана
-    if color_mapper is None:
-        values = source.data['values']
-        color_mapper = LinearColorMapper(
-            palette=Viridis256,
-            low=min(values),
-            high=max(values)  # Исправлено: используем high вместо max
-        )
 
-    # Создаем фигуру
-    p = figure(
-        title=title.upper(),
-        x_range=(min(N_START_VALUES) - cell_size / 2, max(N_START_VALUES) + cell_size / 2),
-        y_range=(min(N_FINISH_VALUES) - cell_size / 2, max(N_FINISH_VALUES) + cell_size / 2),
-        tools="hover",
-        toolbar_location=None,
-        width=600,
-        height=400,
-        x_axis_label='n_start (days)',
-        y_axis_label='n_finish (days)'
-    )
-    p.title.text_font_size = '14pt'
 
-    # Рисуем квадратные ячейки без отступов
-    p.rect(
-        x='x', y='y',
-        width=cell_size,
-        height=cell_size,
-        source=source,
-        fill_color={'field': 'values', 'transform': color_mapper},
-        line_color=None
-    )
+# def create_heatmap(title, source, color_mapper=None):
+#     # Размеры данных
+#     n_x = len(N_START_VALUES)
+#     n_y = len(N_FINISH_VALUES)
+#
+#     # Размер ячейки (делаем квадратные ячейки)
+#     cell_size = min(
+#         (max(N_START_VALUES) - min(N_START_VALUES)) / n_x,
+#         (max(N_FINISH_VALUES) - min(N_FINISH_VALUES)) / n_y
+#     ) * 0.9  # 0.9 для небольшого отступа между ячейками
+#
+#     # Создаем цветовую карту если не передана
+#     if color_mapper is None:
+#         values = source.data['values']
+#         color_mapper = LinearColorMapper(
+#             palette=Viridis256,
+#             low=min(values),
+#             high=max(values)  # Исправлено: используем high вместо max
+#         )
+#
+#     # Создаем фигуру
+#     p = figure(
+#         title=title.upper(),
+#         x_range=(min(N_START_VALUES) - cell_size / 2, max(N_START_VALUES) + cell_size / 2),
+#         y_range=(min(N_FINISH_VALUES) - cell_size / 2, max(N_FINISH_VALUES) + cell_size / 2),
+#         tools="hover",
+#         toolbar_location=None,
+#         width=600,
+#         height=400,
+#         x_axis_label='n_start (days)',
+#         y_axis_label='n_finish (days)'
+#     )
+#     p.title.text_font_size = '14pt'
+#
+#     # Рисуем квадратные ячейки без отступов
+#     p.rect(
+#         x='x', y='y',
+#         width=cell_size,
+#         height=cell_size,
+#         source=source,
+#         fill_color={'field': 'values', 'transform': color_mapper},
+#         line_color=None
+#     )
+#
+#     # Настройка осей
+#     p.xaxis.ticker = N_START_VALUES
+#     p.yaxis.ticker = N_FINISH_VALUES
+#     p.grid.visible = False
+#     p.outline_line_color = None
+#
+#     # Настройка подсказок
+#     p.hover.tooltips = [
+#         ("Parameters", "@x days / @y days"),
+#         ("Sharpe Ratio", "@values{0.3f}")
+#     ]
+#
+#     return p, color_mapper
+
+# Определяем размеры данных
+NUM_ROWS = len(N_START_VALUES)
+NUM_COLS = len(N_FINISH_VALUES)
+
+# Создаем данные (пример, замените на ваши реальные данные, если нужно)
+# Важно: размерность data должна соответствовать NUM_ROWS x NUM_COLS
+data = np.array([[i * j for j in range(NUM_COLS)] for i in range(NUM_ROWS)]).flatten()
+# Размеры
+rows = len(N_START_VALUES)
+cols = len(N_FINISH_VALUES)
+
+# Подготовка данных для Bokeh
+x = list(range(cols))  # Индексы для столбцов
+y = list(range(rows))  # Индексы для строк
+xx, yy = np.meshgrid(x, y)
+
+# Сдвигаем координаты на половину единицы, чтобы центры ячеек совпадали с целыми числами
+x_offset = xx.flatten() + 0.5
+y_offset = yy.flatten() + 0.5
+
+source = ColumnDataSource(data=dict(x=x_offset, y=y_offset, z=[d for d in data]))
+
+def create_heatmap(data, x_ticks=N_FINISH_VALUES, y_ticks=N_START_VALUES, source=None, title="title", color_mapper=None):
+
+
+    # # Цветовая палитра
+    # palette = Viridis256
+    # color_mapper = LinearColorMapper(palette=palette, low=data.min(), high=data.max())
+
+    # Вычисляем width и height для сохранения квадратности
+    base_size = 450  # Примерный базовый размер
+    width = int(base_size * (cols / rows))  # Ширина пропорциональна кол-ву столбцов
+    height = int(base_size * (cols / rows)**(-1))  # Высота пропорциональна кол-ву строк
+
+    # Создание фигуры
+    p = figure(width=width, height=height,
+               x_range=(0, cols), y_range=(0, rows),
+               x_axis_location="above",
+               title=title,
+               min_border=0,
+               match_aspect=True,
+               toolbar_location=None,
+               tools='hover')
+
+    # Рендеринг ячеек тепловой карты
+    # Используем сдвинутые координаты x и y
+    p.rect(x="x", y="y", width=1, height=1, source=source,
+           fill_color={'field': 'values', 'transform': color_mapper},
+           line_color=None)
 
     # Настройка осей
-    p.xaxis.ticker = N_START_VALUES
-    p.yaxis.ticker = N_FINISH_VALUES
-    p.grid.visible = False
-    p.outline_line_color = None
+    # Создаем тикеры со смещением
+    x_ticker = FixedTicker(ticks=[i + 0.5 for i in range(cols)])  # Сдвигаем тики в центр ячеек
+    y_ticker = FixedTicker(ticks=[i + 0.5 for i in range(rows)])  # Сдвигаем тики в центр ячеек
 
-    # Настройка подсказок
-    p.hover.tooltips = [
-        ("Parameters", "@x days / @y days"),
-        ("Sharpe Ratio", "@values{0.3f}")
+    p.xaxis.ticker = x_ticker
+    p.yaxis.ticker = y_ticker
+
+    # Заменяем метки тиков на значения из массивов
+    p.xaxis.major_label_overrides = {i + 0.5: str(val) for i, val in enumerate(x_ticks)}  # Преобразуем в строки
+    p.yaxis.major_label_overrides = {i + 0.5: str(val) for i, val in enumerate(y_ticks)}  # Преобразуем в строки
+    p.xaxis.axis_label = "N_FINISH_VALUES"
+    p.yaxis.axis_label = "N_START_VALUES"
+    p.xaxis.major_label_standoff = 0
+    p.xaxis.major_tick_in = 0
+    p.yaxis.major_label_standoff = 0
+    p.yaxis.major_tick_in = 0
+
+    # # Настройка подсказок
+    # p.hover.tooltips = [
+    #     # ("Parameters", "@x days / @y days"),
+    #     ("Sharpe Ratio", "@values{0.3f}")
+    # ]
+    # Настройка подсказок - простой рабочий вариант
+    hover = p.select_one(HoverTool)
+    hover.tooltips = [
+        ("Sharpe ratio", "@values{0.3f}")
     ]
+    hover.mode = 'mouse'
+    # Создание цветовой шкалы (color bar)
+    color_bar = ColorBar(color_mapper=color_mapper, ticker=BasicTicker(),
+                         label_standoff=12)
 
-    return p, color_mapper
+    # Добавление цветовой шкалы на график
+    p.add_layout(color_bar, 'right')
+    return p
 
 
-# ========== Источники данных ==========
-real_source = ColumnDataSource(
-    data={'x': df_returns_real.index, **{f'y{i}': real_processes[i] for i in range(N_PROCESSES)}})
-generated_source = ColumnDataSource(
-    data={'x': df_returns_real.index, **{f'y{i}': generated_processes['TCN'][0][i] for i in range(N_PROCESSES)}})
+# --- Пример использования ---
 
-xx, yy = np.meshgrid(N_START_VALUES, N_FINISH_VALUES)
-heatmap_real_values = sharp_grid(train_data).flatten()
-heatmap_generated_values = sharp_grid(generated_returns['TCN'][0]).flatten()
+
+
+
+heatmap_real_values = sharp_grid(df_returns_real).flatten()
+heatmap_generated_values = sharp_grid(generated_returns['TCN'][GENERATIONS_COUNTER]).flatten()#heatmap_data_generated['TCN'].flatten()
 
 heatmap_real_source = ColumnDataSource(data={
-    'x': xx.T.flatten(),
-    'y': yy.T.flatten(),
+    'x': x_offset, #или xx.T.flatten() если нужно транспонировать
+    'y': y_offset, #или yy.T.flatten() если нужно транспонировать
     'values': heatmap_real_values
 })
 
 heatmap_generated_source = ColumnDataSource(data={
-    'x': xx.T.flatten(),
-    'y': yy.T.flatten(),
+    'x': x_offset,#или xx.T.flatten() если нужно транспонировать
+    'y': y_offset, #или yy.T.flatten() если нужно транспонировать
     'values': heatmap_generated_values
 })
 
@@ -206,24 +296,27 @@ all_values = np.concatenate([heatmap_real_source.data['values'],
 common_color_mapper = LinearColorMapper(
     palette=Viridis256,
     low=min(all_values),
-    high=max(all_values)  # Исправлено: используем high вместо max
+    high=max(all_values)
 )
 
 # Создаем хитмэпы с общей цветовой шкалой
-heatmap_real, _ = create_heatmap("On Real Data", heatmap_real_source, common_color_mapper)
-heatmap_generated, _ = create_heatmap("On Generated Data", heatmap_generated_source, common_color_mapper)
+heatmap_real = create_heatmap(data=heatmap_real_values, title="On Real Data", source=heatmap_real_source, color_mapper=common_color_mapper)
+heatmap_generated = create_heatmap(data=heatmap_generated_values, title="On Generated Data", source=heatmap_generated_source, color_mapper=common_color_mapper)
 
-# Добавляем цветовую шкалу
-color_bar = ColorBar(
-    color_mapper=common_color_mapper,
-    width=20,
-    location=(0, 0),
-    title="Sharpe Ratio",
-    title_text_font_size='10pt'
-)
+# # Создание цветовой шкалы (color bar) - ОДИН для обоих графиков
+# color_bar = ColorBar(color_mapper=common_color_mapper, ticker=FixedTicker(),
+#                      label_standoff=12)
+#
+#
+# # Добавление цветовой шкалы на график - добавляем к ОДНОМУ из графиков
+# heatmap_real.add_layout(color_bar, 'right')  # Например, добавляем к heatmap_real
+# heatmap_generated.add_layout(color_bar, 'right')
 
-# Размещаем цветовую шкалу на одном из хитмэпов
-heatmap_generated.add_layout(color_bar, 'right')
+# ========== Источники данных ==========
+real_source = ColumnDataSource(
+    data={'x': df_returns_real.index, **{f'y{i}': real_processes[i] for i in range(N_PROCESSES)}})
+generated_source = ColumnDataSource(
+    data={'x': df_returns_real.index, **{f'y{i}': generated_processes['TCN'][0][i] for i in range(N_PROCESSES)}})
 
 # ========== Виджеты ==========
 architecture_selector = RadioButtonGroup(labels=ARCHITECTURES, active=0, width=300)
@@ -261,15 +354,37 @@ regenerate_button = Button(label="⟳ REGENERATE", button_type="default", width=
                            styles={'margin-left': '20px', 'font-size': '12pt'})
 
 # ========== Параметры стратегии ==========
-optimal_params_train = {
-    'n_start': heatmap_real_source.data['x'][np.argmax(heatmap_real_source.data['values'])],
-    'n_finish': heatmap_real_source.data['y'][np.argmax(heatmap_real_source.data['values'])]
-}
+def get_optimal_params(heatmap_source, N_START_VALUES, N_FINISH_VALUES):
+  """
+  Находит оптимальные параметры n_start и n_finish, соответствующие максимальному значению в плоском массиве heatmap_source.data['values'].
 
-optimal_params_generated = {
-    'n_start': heatmap_generated_source.data['x'][np.argmax(heatmap_generated_source.data['values'])],
-    'n_finish': heatmap_generated_source.data['y'][np.argmax(heatmap_generated_source.data['values'])]
-}
+  Args:
+    heatmap_source: Объект Bokeh ColumnDataSource, содержащий плоский массив значений в heatmap_source.data['values'].
+    N_START_VALUES: Список возможных значений n_start.
+    N_FINISH_VALUES: Список возможных значений n_finish.
+
+  Returns:
+    Словарь, содержащий оптимальные значения n_start и n_finish.
+  """
+  values = heatmap_source.data['values']
+  max_index_flat = np.argmax(values)  # Индекс максимального значения в плоском массиве
+  num_start_values = len(N_START_VALUES) # Число возможных значений n_finish
+
+  # Преобразуем плоский индекс в индексы по осям x (n_start) и y (n_finish)
+  index_n_start = max_index_flat // num_start_values  # Деление нацело для получения индекса n_start
+  index_n_finish = max_index_flat % num_start_values  # Остаток от деления для получения индекса n_finish
+
+  optimal_params = {
+      'n_start': N_START_VALUES[index_n_start],
+      'n_finish': N_FINISH_VALUES[index_n_finish]
+  }
+  return optimal_params
+
+
+# Применение функции к вашим данным:
+optimal_params_train = get_optimal_params(heatmap_real_source, N_START_VALUES, N_FINISH_VALUES)
+optimal_params_generated = get_optimal_params(heatmap_generated_source, N_START_VALUES, N_FINISH_VALUES)
+
 
 n_start_select = Select(title="n_start (days):", value=str(N_START_VALUES[0]),
                         options=[str(x) for x in N_START_VALUES], width=150)
@@ -314,8 +429,9 @@ params_generated = create_param_block("Optimized on generated data",
 params_custom = create_param_block("Custom parameters", "", "", is_custom=True)
 
 # ========== График стратегии ==========
+
 train_returns = strategy_return(test_data, nf=optimal_params_train['n_finish'],
-                                ns=optimal_params_train['n_start']).cumsum()
+                                    ns=optimal_params_train['n_start']).cumsum()
 fake_returns = strategy_return(test_data, nf=optimal_params_generated['n_finish'],
                                ns=optimal_params_generated['n_start']).cumsum()
 custom_returns = strategy_return(test_data, nf=int(n_finish_select.value),
