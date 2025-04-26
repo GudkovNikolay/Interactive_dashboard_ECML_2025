@@ -85,7 +85,7 @@ generated_processes['GRU'] = np.transpose(gru_df_returns_fake.cumsum(axis=1), ax
 # ========== Визуализация ==========
 def create_stock_plot(title, source, split=False):
     p = figure(
-        title=title.upper(),
+        title=title,
         width=450,
         height=300,
         tools="",
@@ -94,7 +94,6 @@ def create_stock_plot(title, source, split=False):
     )
     p.title.text_font_size = '14pt'  # Правильный способ установки размера шрифта заголовка
 
-
     if split:
         split_line = Span(location=split_date, dimension='height',
                           line_color='red', line_width=1, line_dash='dashed')
@@ -102,10 +101,10 @@ def create_stock_plot(title, source, split=False):
 
         train_label = Label(x=df_returns_real.index[int(split_idx * 0.4)],
                             y=0.9 * max(real_processes.flatten()),
-                            text='TRAIN', text_color='red', text_font_size='12pt')
+                            text='train', text_color='red', text_font_size='12pt')
         test_label = Label(x=df_returns_real.index[split_idx + int((len(df_returns_real) - split_idx) * 0.3)],
                            y=0.9 * max(real_processes.flatten()),
-                           text='TEST', text_color='red', text_font_size='12pt')
+                           text='test', text_color='red', text_font_size='12pt')
         p.add_layout(train_label)
         p.add_layout(test_label)
 
@@ -320,7 +319,7 @@ generated_source = ColumnDataSource(
 
 # ========== Виджеты ==========
 architecture_selector = RadioButtonGroup(labels=ARCHITECTURES, active=0, width=300)
-architecture_label = Div(text="<b>GAN ARCHITECTURE</b>", styles={'text-align': 'center', 'font-size': '12pt'})
+architecture_label = Div(text="<b>Gan Architecture</b>", styles={'text-align': 'center', 'font-size': '12pt'})
 
 cfid_values = {
     'TCN': {'mean': 0.000224, 'std': 8.75e-06},
@@ -337,7 +336,7 @@ def format_cfid(mean, std):
     return f"{mean:.2e} ± {scaled_std:.2f}e{order}"
 
 
-cfid_label = Div(text="<b>GENERATION QUALITY (C-FID)</b>",
+cfid_label = Div(text="<b>Generation Quality (C-FID)</b>",
                  styles={'text-align': 'center', 'font-size': '12pt'})
 cfid_value = Div(text=format_cfid(cfid_values['TCN']['mean'], cfid_values['TCN']['std']),
                  styles={
@@ -350,8 +349,8 @@ cfid_value = Div(text=format_cfid(cfid_values['TCN']['mean'], cfid_values['TCN']
                      'font-size': '11pt'
                  })
 
-regenerate_button = Button(label="⟳ REGENERATE", button_type="default", width=150,
-                           styles={'margin-left': '20px', 'margin-top': '37px', 'font-size': '12pt'})
+regenerate_button = Button(label="⟳ Regenerate", button_type="default", width=150,
+                           styles={'margin-left': '10px', 'margin-top': '37px', 'font-size': '12pt'})
 
 # ========== Параметры стратегии ==========
 def get_optimal_params(heatmap_source, N_START_VALUES, N_FINISH_VALUES):
@@ -385,14 +384,14 @@ optimal_params_train = get_optimal_params(heatmap_real_source, N_START_VALUES, N
 optimal_params_generated = get_optimal_params(heatmap_generated_source, N_START_VALUES, N_FINISH_VALUES)
 
 
-n_start_select = Select(title="n_start (days):", value=str(N_START_VALUES[0]),
+n_start_select = Select(title="", value=str(N_START_VALUES[0]),
                         options=[str(x) for x in N_START_VALUES], width=150)
-n_finish_select = Select(title="n_finish (days):", value=str(N_FINISH_VALUES[0]),
+n_finish_select = Select(title="", value=str(N_FINISH_VALUES[0]),
                          options=[str(x) for x in N_FINISH_VALUES], width=150)
 
 
 def create_param_block(title, n_start, n_finish, is_custom=False):
-    title_div = Div(text=f"<b>{title.upper()}</b>",
+    title_div = Div(text=f"<b>{title}</b>",
                     styles={'text-align': 'center', 'margin-bottom': '10px', 'font-size': '12pt'})
 
     if is_custom:
@@ -417,15 +416,15 @@ def create_param_block(title, n_start, n_finish, is_custom=False):
     )
 
 
-params_train = create_param_block("Optimized on real data",
+params_train = create_param_block("Optimized on Real Data",
                                   optimal_params_train['n_start'],
                                   optimal_params_train['n_finish'])
 
-params_generated = create_param_block("Optimized on generated data",
+params_generated = create_param_block("Optimized on Generated Data",
                                       optimal_params_generated['n_start'],
                                       optimal_params_generated['n_finish'])
 
-params_custom = create_param_block("Custom parameters", "", "", is_custom=True)
+params_custom = create_param_block("Custom Parameters", "", "", is_custom=True)
 
 # ========== График стратегии ==========
 
@@ -444,13 +443,13 @@ strategy_source = ColumnDataSource(data={
 })
 
 strategy_selector = RadioButtonGroup(
-    labels=['REAL PARAMS', 'GEN PARAMS', 'CUSTOM PARAMS'],
+    labels=['Real Params', 'Gen Params', 'Custom Params'],
     active=0,
     width=450
 )
 
 strategy_plot = figure(
-    title="STRATEGY RETURNS (TEST PERIOD)",
+    title="Strategy Returns (Test Period)",
     width=800,
     height=350,
     tools="pan,wheel_zoom,box_zoom,reset,save",
