@@ -478,37 +478,37 @@ strategy_plot.legend.location = "top_left"
 strategy_plot.legend.click_policy = "hide"
 strategy_plot.legend.label_text_font_size = "10pt"
 
-# ========== Кнопки масштабирования ==========
-zoom_buttons = RadioButtonGroup(
-    labels=["1M", "3M", "6M", "1Y", "ALL"],
-    active=4,
-    width=450,
-    styles={'margin': '10px auto'}
-)
+# # ========== Кнопки масштабирования ==========
+# zoom_buttons = RadioButtonGroup(
+#     labels=["1M", "3M", "6M", "1Y", "ALL"],
+#     active=4,
+#     width=450,
+#     styles={'margin': '10px auto'}
+# )
 
 
-def zoom_callback(attr, old, new):
-    end_date = test_data.index[-1]
-    periods = [30, 90, 180, 365, None]
-
-    if periods[new] is None:
-        start_date = test_data.index[0]
-    else:
-        start_date = end_date - timedelta(days=periods[new])
-
-    strategy_plot.x_range.start = start_date
-    strategy_plot.x_range.end = end_date
-
-    # Автомасштабирование по Y
-    active_strategy = ['train', 'fake', 'custom'][strategy_selector.active]
-    visible_data = [y for x, y in zip(strategy_source.data['x'],
-                                      strategy_source.data[active_strategy])]
-    if visible_data:
-        y_padding = (max(visible_data) - min(visible_data)) * 0.1
-        strategy_plot.y_range.start = min(visible_data) - y_padding
-        strategy_plot.y_range.end = max(visible_data) + y_padding
-
-zoom_buttons.on_change('active', zoom_callback)
+# def zoom_callback(attr, old, new):
+#     end_date = test_data.index[-1]
+#     periods = [30, 90, 180, 365, None]
+#
+#     if periods[new] is None:
+#         start_date = test_data.index[0]
+#     else:
+#         start_date = end_date - timedelta(days=periods[new])
+#
+#     strategy_plot.x_range.start = start_date
+#     strategy_plot.x_range.end = end_date
+#
+#     # Автомасштабирование по Y
+#     active_strategy = ['train', 'fake', 'custom'][strategy_selector.active]
+#     visible_data = [y for x, y in zip(strategy_source.data['x'],
+#                                       strategy_source.data[active_strategy])]
+#     if visible_data:
+#         y_padding = (max(visible_data) - min(visible_data)) * 0.1
+#         strategy_plot.y_range.start = min(visible_data) - y_padding
+#         strategy_plot.y_range.end = max(visible_data) + y_padding
+#
+# zoom_buttons.on_change('active', zoom_callback)
 
     # ========== Callback-функции ==========
 
@@ -589,7 +589,7 @@ def update_strategy_display(attr, old, new):
     strategy_plot.renderers[new].glyph.line_color = colors[new]
 
     # Автомасштабирование при переключении
-    zoom_callback(None, None, zoom_buttons.active)
+    # zoom_callback(None, None, zoom_buttons.active)
 
 
 strategy_selector.on_change('active', update_strategy_display)
@@ -635,7 +635,7 @@ params_block = row(
 
 strategy_block = column(
     strategy_selector,
-    zoom_buttons,
+    # zoom_buttons,
     strategy_plot,
     align="center",
     styles={'margin': '30px 0'}
