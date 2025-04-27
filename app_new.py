@@ -54,17 +54,21 @@ Interactive Dashboard for Momentum Strategy Evaluation with GANs
 <p style='text-align: center; margin-bottom: 30px; max-width: 800px; margin-left: auto; margin-right: auto;'>
 
 This dashboard compares the quality of <b>generated cumulative log returns</b> for five stocks from the Moscow Exchange, 
-evaluated using the C-FID metric. It also assesses the performance of a momentum strategy, utilizing the Sharpe 
-Ratio as a key performance indicator. The GAN architectures employed—TCN (Temporal Convolutional Network), 
+evaluated using the C-FID metric. It also show shows how momentum strategy performs with different parameters 
+nfinish and nstart on train period of real data and on generated data, which allows to compare optimal parameter sets,
+ in terms of Sharpe Ratio.
+The GAN architectures employed—TCN (Temporal Convolutional Network), 
 LSTM (Long Short-Term Memory), 
-and GRU (Gated Recurrent Unit)—are among the most relevant for working with time series data, 
-which is why they are chosen for this analysis.
+and GRU (Gated Recurrent Unit).
 <br><br>
-The momentum strategy base on identifying trends in asset prices, 
+The momentum strategy is based on identifying trends in asset prices, 
 buying assets that have shown upward momentum and selling those that have shown downward momentum. 
-The parameters of strategy nstart and nfinish define the observation window for calculating the momentum signal, 
-allowing for an assessment of its impact on strategy performance. Мы подбираем параметры здесь вообщето
-
+The parameters of strategy n start and n finish define the observation window for calculating the momentum signal.
+The graph in the bottom of the dashboard shows strategy performance on the test period, depending on the parameters
+set. There are three plots: strategy utilising parameters optimized with train period of real data (fixed),
+strategy utilising parameters optimized with generated data (depends on current generation),
+strategy utilising parameters optimized chosen by user. This graph
+allow to asses parameters impact on strategy performance. 
 </p>
 """, styles={'margin': '20px 0 0 150px'})
 
@@ -206,9 +210,6 @@ data = np.array([[i * j for j in range(9)] for i in range(6)])
 NUM_ROWS = len(N_START_VALUES)
 NUM_COLS = len(N_FINISH_VALUES)
 
-# Создаем данные (пример, замените на ваши реальные данные, если нужно)
-# Важно: размерность data должна соответствовать NUM_ROWS x NUM_COLS
-data = np.array([[i * j for j in range(NUM_COLS)] for i in range(NUM_ROWS)]).flatten()
 # Размеры
 rows = len(N_START_VALUES)
 cols = len(N_FINISH_VALUES)
@@ -225,11 +226,6 @@ y_offset = yy.flatten() + 0.5
 source = ColumnDataSource(data=dict(x=x_offset, y=y_offset, z=[d for d in data]))
 
 def create_heatmap(data, x_ticks=N_FINISH_VALUES, y_ticks=N_START_VALUES, source=None, title="title", color_mapper=None):
-
-
-    # # Цветовая палитра
-    # palette = Viridis256
-    # color_mapper = LinearColorMapper(palette=palette, low=data.min(), high=data.max())
 
     # Вычисляем width и height для сохранения квадратности
     base_size = 450  # Примерный базовый размер
@@ -263,19 +259,14 @@ def create_heatmap(data, x_ticks=N_FINISH_VALUES, y_ticks=N_START_VALUES, source
     # Заменяем метки тиков на значения из массивов
     p.xaxis.major_label_overrides = {i + 0.5: str(val) for i, val in enumerate(x_ticks)}  # Преобразуем в строки
     p.yaxis.major_label_overrides = {i + 0.5: str(val) for i, val in enumerate(y_ticks)}  # Преобразуем в строки
-    p.xaxis.axis_label = "N_FINISH_VALUES"
-    p.yaxis.axis_label = "N_START_VALUES"
+    p.xaxis.axis_label = "n finish"
+    p.yaxis.axis_label = "n start"
     p.xaxis.major_label_standoff = 0
     p.xaxis.major_tick_in = 0
     p.yaxis.major_label_standoff = 0
     p.yaxis.major_tick_in = 0
 
-    # # Настройка подсказок
-    # p.hover.tooltips = [
-    #     # ("Parameters", "@x days / @y days"),
-    #     ("Sharpe Ratio", "@values{0.3f}")
-    # ]
-    # Настройка подсказок - простой рабочий вариант
+    # Настройка подсказок
     hover = p.select_one(HoverTool)
     hover.tooltips = [
         ("Sharpe ratio", "@values{0.3f}")
@@ -288,9 +279,6 @@ def create_heatmap(data, x_ticks=N_FINISH_VALUES, y_ticks=N_START_VALUES, source
     # Добавление цветовой шкалы на график
     p.add_layout(color_bar, 'right')
     return p
-
-
-# --- Пример использования ---
 
 
 
@@ -419,17 +407,17 @@ def create_param_block(title, n_start, n_finish, is_custom=False):
         finish_widget = n_finish_select
     else:
         start_widget = Div(text=f"{n_start}", styles={'text-align': 'center', 'border': '1px solid gray',
-                                                      'border-radius': '5px', 'padding': '5px', 'width': '100px',
+                                                      'border-radius': '5px', 'padding': '5px', 'width': '150px',
                                                       'margin': '5px auto', 'font-size': '11pt'})
         finish_widget = Div(text=f"{n_finish}", styles={'text-align': 'center', 'border': '1px solid gray',
-                                                        'border-radius': '5px', 'padding': '5px', 'width': '100px',
+                                                        'border-radius': '5px', 'padding': '5px', 'width': '150px',
                                                         'margin': '5px auto', 'font-size': '11pt'})
 
     return column(
         title_div,
-        Div(text="n_start (days):", styles={'text-align': 'center', 'font-size': '11pt'}),
+        Div(text="n start:", styles={'text-align': 'center', 'font-size': '11pt'}),
         start_widget,
-        Div(text="n_finish (days):", styles={'text-align': 'center', 'font-size': '11pt'}),
+        Div(text="n finish:", styles={'text-align': 'center', 'font-size': '11pt'}),
         finish_widget,
         align="center",
         styles={'margin': '0 20px'}
@@ -486,12 +474,12 @@ strategy_plot.title.text_font_size = '14pt'  # Правильный способ
 # )
 # strategy_plot.add_tools(hover)
 
-strategy_plot.line('x', 'train', source=strategy_source, line_width=3,
-                   name="train", legend_label="Optimized on real data")
-strategy_plot.line('x', 'fake', source=strategy_source, line_width=1,
-                   name="fake", legend_label="Optimized on generated data")
-strategy_plot.line('x', 'custom', source=strategy_source, line_width=1,
-                   name="custom", legend_label="Custom parameters")
+strategy_plot.line('x', 'train', source=strategy_source, line_width=2,
+                   name="train", legend_label="Optimized on real data", color=LINE_COLORS[0])
+strategy_plot.line('x', 'fake', source=strategy_source, line_width=2,
+                   name="fake", legend_label="Optimized on generated data", color=LINE_COLORS[1])
+strategy_plot.line('x', 'custom', source=strategy_source, line_width=2,
+                   name="custom", legend_label="Custom parameters", color=LINE_COLORS[2])
 
 strategy_plot.legend.location = "bottom_left"
 strategy_plot.legend.click_policy = "hide"
