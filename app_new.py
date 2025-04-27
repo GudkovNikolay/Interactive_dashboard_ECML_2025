@@ -4,7 +4,7 @@ from bokeh.io import curdoc
 from bokeh.layouts import column, row
 from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource,
                           TextInput, LinearColorMapper, FixedTicker, BasicTicker,
-                          BasicTicker, ColorBar, Select, Span, Label, Button, HoverTool)
+                          BasicTicker, ColorBar, Select, Span, Label, Button, HoverTool, Legend)
 from bokeh.plotting import figure
 from bokeh.palettes import Viridis256
 from bokeh.transform import transform
@@ -14,7 +14,6 @@ from datetime import timedelta
 from sharp_ratio import sharp_grid, strategy_return
 from library.constants import DEVICE
 from library.dataset import get_pytorch_datataset
-# from library.dataset import get_pytorch_datataset
 from library.gan import Generator as TCN_Generator
 from library.gan_LSTM import Generator as LSTM_Generator
 from library.gan_GRU import Generator as GRU_Generator
@@ -34,22 +33,45 @@ LINE_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 ARCHITECTURES = ['TCN', 'LSTM', 'GRU']
 
 # ========== Заголовок и описание ==========
+'''
 dashboard_title = Div(text="""
 <h1 style='text-align: center; margin-bottom: 20px; font-size: 24px;'>
 Interactive Tool for Momentum Strategy Evaluation with GANs
 </h1>
 <p style='text-align: center; margin-bottom: 30px; max-width: 800px; margin-left: auto; margin-right: auto;'>
-This dashboard compares the quality of log-return generations for five Moscow Exchange stocks 
+This dashboard compares the quality of cumulative log-return generations for five Moscow Exchange stocks 
 and evaluates Momentum strategy performance. The GAN architectures (TCN, LSTM, GRU) generate synthetic 
 price series used for strategy optimization. Momentum parameters (n_start, n_finish) define the lookback 
 window for calculating the momentum signal.
+</p>
+""", styles={'margin': '20px 0 0 150px'})
+'''
+
+dashboard_title = Div(text="""
+<h1 style='text-align: center; margin-bottom: 20px; font-size: 24px;'>
+Interactive Dashboard for Momentum Strategy Evaluation with GANs
+</h1>
+<p style='text-align: center; margin-bottom: 30px; max-width: 800px; margin-left: auto; margin-right: auto;'>
+
+This dashboard compares the quality of <b>generated cumulative log returns</b> for five stocks from the Moscow Exchange, 
+evaluated using the C-FID metric. It also assesses the performance of a momentum strategy, utilizing the Sharpe 
+Ratio as a key performance indicator. The GAN architectures employed—TCN (Temporal Convolutional Network), 
+LSTM (Long Short-Term Memory), 
+and GRU (Gated Recurrent Unit)—are among the most relevant for working with time series data, 
+which is why they are chosen for this analysis.
+<br><br>
+The momentum strategy base on identifying trends in asset prices, 
+buying assets that have shown upward momentum and selling those that have shown downward momentum. 
+The parameters of strategy nstart and nfinish define the observation window for calculating the momentum signal, 
+allowing for an assessment of its impact on strategy performance. Мы подбираем параметры здесь вообщето
+
 </p>
 """, styles={'margin': '20px 0 0 150px'})
 
 # ========== Загрузка данных ==========
 np.random.seed(42)
 df_returns_real = get_pytorch_datataset()[0]
-
+# print(f'legend = {df_returns_real.columns}')
 N_POINTS = df_returns_real.shape[0]
 N_PROCESSES = df_returns_real.shape[1]
 
@@ -78,10 +100,7 @@ generated_returns['GRU'] = [pd.DataFrame(gru_df_returns_fake[i], index=df_return
 generated_processes['TCN'] = np.transpose(tcn_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1))
 generated_processes['LSTM'] = np.transpose(lstm_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1))
 generated_processes['GRU'] = np.transpose(gru_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1))
-# print('HERE')
-# print(np.transpose(gru_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1)).shape)#(100, 2576, 5)
-#
-# print('HERE')
+
 # ========== Визуализация ==========
 def create_stock_plot(title, source, split=False):
     p = figure(
@@ -107,15 +126,16 @@ def create_stock_plot(title, source, split=False):
                            text='test', text_color='red', text_font_size='12pt')
         p.add_layout(train_label)
         p.add_layout(test_label)
-
+    test = []
     for i in range(N_PROCESSES):
-        p.line('x', f'y{i}', source=source, line_width=2,
+        test.append(p.line('x', f'y{i}', source=source, line_width=2,
                color=LINE_COLORS[i % len(LINE_COLORS)],
-               legend_label=f"Stock {i + 1}")
+               # legend_label=df_returns_real.columns[i]
+                           )
+                    )
 
-    p.legend.location = "top_left"
-    p.legend.click_policy = "hide"
-    p.legend.label_text_font_size = "10pt"
+    legend = Legend(items=[(legend, [val]) for legend, val in zip(df_returns_real.columns, test)], location="center", orientation = "horizontal", click_policy = "hide", label_text_font_size = "10pt")
+    p.add_layout(legend, 'below')
     return p
 
 
@@ -299,7 +319,7 @@ common_color_mapper = LinearColorMapper(
 )
 
 # Создаем хитмэпы с общей цветовой шкалой
-heatmap_real = create_heatmap(data=heatmap_real_values, title="On Real Data", source=heatmap_real_source, color_mapper=common_color_mapper)
+heatmap_real = create_heatmap(data=heatmap_real_values, title="On Real Data (Train Period)", source=heatmap_real_source, color_mapper=common_color_mapper)
 heatmap_generated = create_heatmap(data=heatmap_generated_values, title="On Generated Data", source=heatmap_generated_source, color_mapper=common_color_mapper)
 
 # # Создание цветовой шкалы (color bar) - ОДИН для обоих графиков
@@ -349,7 +369,7 @@ cfid_value = Div(text=format_cfid(cfid_values['TCN']['mean'], cfid_values['TCN']
                      'font-size': '11pt'
                  })
 
-regenerate_button = Button(label="⟳ Regenerate", button_type="default", width=150,
+regenerate_button = Button(label="⟳ New Generation", button_type="default", width=150,
                            styles={'margin-left': '10px', 'margin-top': '37px', 'font-size': '12pt'})
 
 # ========== Параметры стратегии ==========
@@ -459,21 +479,21 @@ strategy_plot = figure(
 )
 strategy_plot.title.text_font_size = '14pt'  # Правильный способ установки размера шрифта заголовка
 
-hover = HoverTool(
-    tooltips=[("Date", "@x{%F}"), ("Return", "@$name{0.2f}")],
-    formatters={"@x": "datetime"},
-    mode='vline'
-)
-strategy_plot.add_tools(hover)
+# hover = HoverTool(
+#     tooltips=[("Date", "@x{%F}"), ("Return", "@$name{0.2f}")],
+#     formatters={"@x": "datetime"},
+#     mode='vline'
+# )
+# strategy_plot.add_tools(hover)
 
 strategy_plot.line('x', 'train', source=strategy_source, line_width=3,
-                   color='blue', name="train", legend_label="Optimized on real data")
+                   name="train", legend_label="Optimized on real data")
 strategy_plot.line('x', 'fake', source=strategy_source, line_width=1,
-                   color='gray', alpha=0.2, name="fake", legend_label="Optimized on generated data")
+                   name="fake", legend_label="Optimized on generated data")
 strategy_plot.line('x', 'custom', source=strategy_source, line_width=1,
-                   color='gray', alpha=0.2, name="custom", legend_label="Custom parameters")
+                   name="custom", legend_label="Custom parameters")
 
-strategy_plot.legend.location = "top_left"
+strategy_plot.legend.location = "bottom_left"
 strategy_plot.legend.click_policy = "hide"
 strategy_plot.legend.label_text_font_size = "10pt"
 
@@ -604,8 +624,8 @@ header = row(
 
 plots_block = column(
     row(
-        create_stock_plot("Real Stocks", real_source, split=True),
-        create_stock_plot("Generated Stocks", generated_source),
+        create_stock_plot("Real Cumulative Log Returns", real_source, split=True),
+        create_stock_plot("Generated Cumulative Log Returns", generated_source),
         align="center",
         styles={'justify-content': 'center'}
     ),
@@ -633,7 +653,7 @@ params_block = row(
 )
 
 strategy_block = column(
-    strategy_selector,
+    # strategy_selector,
     # zoom_buttons,
     strategy_plot,
     align="center",
