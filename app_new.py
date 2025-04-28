@@ -12,10 +12,7 @@ from bokeh.palettes import Viridis256
 from sharp_ratio import sharp_grid, strategy_return
 from library.dataset import get_pytorch_datataset
 
-
-from fid import calculate_fid
-
-# ========== Конфигурация ==========
+# ========== Configuration ==========
 N_START_VALUES = [20, 40, 60, 80, 100]
 N_FINISH_VALUES = [150, 200, 250, 300, 350, 400]
 GENERATIONS_AMOUNT = 100
@@ -23,7 +20,7 @@ GENERATIONS_COUNTER = 0
 LINE_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 ARCHITECTURES = ['TCN', 'LSTM', 'GRU']
 
-# ========== Заголовок и описание ==========
+# ========== Header and description ==========
 dashboard_title = Div(text="""
 <h1 style='text-align: center; margin-bottom: 20px; font-size: 24px;'>
 Interactive Dashboard for Momentum Strategy Evaluation with GANs
@@ -53,28 +50,27 @@ chosen by user. This graph allows to assess parameters impact on strategy perfor
 </p>
 """, styles={'margin': '20px 0 0 150px'})
 
-# ========== Загрузка данных ==========
+# ========== Load data ==========
 np.random.seed(42)
 df_returns_real = get_pytorch_datataset()[0]
-# print(f'legend = {df_returns_real.columns}')
 N_POINTS = df_returns_real.shape[0]
 N_PROCESSES = df_returns_real.shape[1]
 
 real_processes = np.array(df_returns_real.cumsum()).transpose()
 
-# Разделение на train/test
+# Train/test split
 split_idx = int(len(df_returns_real) * 0.8)
 train_data = df_returns_real.iloc[:split_idx]
 test_data = df_returns_real.iloc[split_idx:]
 split_date = df_returns_real.index[split_idx]
 
-# ========== Генерация данных ==========
 
+#Following data is generated with file generate_returs.py
 tcn_df_returns_fake = np.load('generated_returns/tcn_df_returns_fake.npy')
 lstm_df_returns_fake = np.load('generated_returns/lstm_df_returns_fake.npy')
 gru_df_returns_fake = np.load('generated_returns/gru_df_returns_fake.npy')
 
-# Инициализация структур данных
+# Data structures initialisation
 generated_returns = {arch: [] for arch in ARCHITECTURES}
 generated_processes = {arch: [] for arch in ARCHITECTURES}
 
@@ -86,7 +82,7 @@ generated_processes['TCN'] = np.transpose(tcn_df_returns_fake.cumsum(axis=1), ax
 generated_processes['LSTM'] = np.transpose(lstm_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1))
 generated_processes['GRU'] = np.transpose(gru_df_returns_fake.cumsum(axis=1), axes=(0, 2, 1))
 
-# ========== Визуализация ==========
+# ========== Visualisation ==========
 def create_stock_plot(title, source, split=False):
     p = figure(
         title=title,
@@ -96,7 +92,7 @@ def create_stock_plot(title, source, split=False):
         toolbar_location=None,
         x_axis_type='datetime'
     )
-    p.title.text_font_size = '14pt'  # Правильный способ установки размера шрифта заголовка
+    p.title.text_font_size = '14pt'
 
     if split:
         split_line = Span(location=split_date, dimension='height',
@@ -115,7 +111,6 @@ def create_stock_plot(title, source, split=False):
     for i in range(N_PROCESSES):
         test.append(p.line('x', f'y{i}', source=source, line_width=2,
                color=LINE_COLORS[i % len(LINE_COLORS)],
-               # legend_label=df_returns_real.columns[i]
                            )
                     )
 
@@ -124,13 +119,8 @@ def create_stock_plot(title, source, split=False):
     return p
 
 
-data = np.array([[i * j for j in range(9)] for i in range(6)])
 
-# Определяем размеры данных
-NUM_ROWS = len(N_START_VALUES)
-NUM_COLS = len(N_FINISH_VALUES)
-
-# Размеры
+# Heatmap size
 rows = len(N_START_VALUES)
 cols = len(N_FINISH_VALUES)
 
@@ -143,7 +133,6 @@ xx, yy = np.meshgrid(x, y)
 x_offset = xx.flatten() + 0.5
 y_offset = yy.flatten() + 0.5
 
-# source = ColumnDataSource(data=dict(x=x_offset, y=y_offset, z=[d for d in data]))
 
 def create_heatmap(x_ticks=N_FINISH_VALUES, y_ticks=N_START_VALUES, source=None, title="title", color_mapper=None):
 
@@ -242,6 +231,7 @@ generated_source = ColumnDataSource(
 architecture_selector = RadioButtonGroup(labels=ARCHITECTURES, active=0, width=300)
 architecture_label = Div(text="<b>Gan Architecture</b>", styles={'text-align': 'center', 'font-size': '12pt'})
 
+#Following values obtain in notebook cfid.ipyb
 cfid_values = {
     'TCN': {'mean': 0.000224, 'std': 8.75e-06},
     'LSTM': {'mean': 0.001126, 'std': 2.13e-05},
@@ -274,26 +264,24 @@ cfid_value = Div(text=format_cfid(cfid_values['TCN']['mean'], cfid_values['TCN']
 regenerate_button = Button(label="⟳ New Generation", button_type="default", width=150,
                            styles={'margin-left': '10px', 'margin-top': '37px', 'font-size': '12pt'})
 
-# ========== Параметры стратегии ==========
+# ========== Strategy parameters ==========
 def get_optimal_params(heatmap_source, N_START_VALUES, N_FINISH_VALUES):
   """
-  Находит оптимальные параметры n_start и n_finish, соответствующие максимальному значению в плоском массиве heatmap_source.data['values'].
+  Find optimal n_start и n_finish, corresponding to maximum of heatmap_source.data['values'].
 
   Args:
-    heatmap_source: Объект Bokeh ColumnDataSource, содержащий плоский массив значений в heatmap_source.data['values'].
-    N_START_VALUES: Список возможных значений n_start.
-    N_FINISH_VALUES: Список возможных значений n_finish.
+    heatmap_source: ColumnDataSource .
+    N_START_VALUES: n_start range.
+    N_FINISH_VALUES: n_finish range.
 
   Returns:
-    Словарь, содержащий оптимальные значения n_start и n_finish.
+    Optimal n_start and n_finish.
   """
   values = heatmap_source.data['values']
-  max_index_flat = np.argmax(values)  # Индекс максимального значения в плоском массиве
-  num_start_values = len(N_START_VALUES) # Число возможных значений n_finish
+  max_index_flat = np.argmax(values)
   num_finish_values = len(N_FINISH_VALUES)
-  # Преобразуем плоский индекс в индексы по осям x (n_start) и y (n_finish)
-  index_n_start = max_index_flat // num_finish_values  # Деление нацело для получения индекса n_start
-  index_n_finish = max_index_flat % num_finish_values  # Остаток от деления для получения индекса n_finish
+  index_n_start = max_index_flat // num_finish_values
+  index_n_finish = max_index_flat % num_finish_values
   optimal_params = {
       'n_start': N_START_VALUES[index_n_start],
       'n_finish': N_FINISH_VALUES[index_n_finish]
@@ -347,7 +335,7 @@ params_generated = create_param_block("Optimized on Generated Data",
 
 params_custom = create_param_block("Custom Parameters", "", "", is_custom=True)
 
-# ========== График стратегии ==========
+# ========== Strategy performance ==========
 
 train_returns = strategy_return(test_data, nf=optimal_params_train['n_finish'],
                                     ns=optimal_params_train['n_start']).cumsum()
@@ -391,27 +379,27 @@ strategy_plot.legend.location = "bottom_left"
 strategy_plot.legend.click_policy = "hide"
 strategy_plot.legend.label_text_font_size = "10pt"
 
-    # ========== Callback-функции ==========
+    # ========== Callback-functios ==========
 
 
 def update_architecture(attr, old, new):
     selected_arch = ARCHITECTURES[new]
 
-    # Обновление графиков
+    # Update plots
     new_data = {'x': df_returns_real.index}
     for i in range(N_PROCESSES):
         new_data[f'y{i}'] = generated_processes[selected_arch][GENERATIONS_COUNTER][i]
     generated_source.data = new_data
 
-    # Обновление C-FID
+    # Update C-FID
     cfid_value.text = format_cfid(cfid_values[selected_arch]['mean'],
                                   cfid_values[selected_arch]['std'])
 
-    # Обновление heatmap
+    # Update heatmap
     new_values = sharp_grid(generated_returns[selected_arch][GENERATIONS_COUNTER]).flatten()
     heatmap_generated_source.data['values'] = new_values
 
-    # Обновление оптимальных параметров
+    # Update optimap params
 
     optimal_params_generated = get_optimal_params(heatmap_generated_source, N_START_VALUES, N_FINISH_VALUES)
 
@@ -422,7 +410,7 @@ def update_architecture(attr, old, new):
     params_generated.children[2].text = str(new_n_start)
     params_generated.children[4].text = str(new_n_finish)
 
-    # Обновление стратегии
+    # Update strategy performance
     new_fake_returns = strategy_return(test_data, nf=new_n_finish, ns=new_n_start).cumsum()
     strategy_source.data['fake'] = new_fake_returns
 
@@ -452,30 +440,7 @@ def update_custom_params(attr, old, new):
 n_start_select.on_change('value', update_custom_params)
 n_finish_select.on_change('value', update_custom_params)
 
-
-def update_strategy_display(attr, old, new):
-    # Сброс всех линий
-    for renderer in strategy_plot.renderers:
-        if hasattr(renderer, 'glyph'):
-            renderer.glyph.line_width = 1
-            renderer.glyph.line_alpha = 0.2
-            renderer.glyph.line_color = 'gray'
-
-    # Выделение активной стратегии
-    active_strategy = ['train', 'fake', 'custom'][new]
-    colors = ['blue', 'green', 'red']
-
-    strategy_plot.renderers[new].glyph.line_width = 3
-    strategy_plot.renderers[new].glyph.line_alpha = 1
-    strategy_plot.renderers[new].glyph.line_color = colors[new]
-
-    # Автомасштабирование при переключении
-    # zoom_callback(None, None, zoom_buttons.active)
-
-
-strategy_selector.on_change('active', update_strategy_display)
-
-# ========== Компоновка ==========
+# ========== Layout ==========
 header = row(
     column(architecture_label, architecture_selector, styles={'margin': '0 0 0 50px'}),
     regenerate_button,
