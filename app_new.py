@@ -7,20 +7,11 @@ from bokeh.models import (RadioButtonGroup, Div, ColumnDataSource,
                           BasicTicker, ColorBar, Select, Span, Label, Button, HoverTool, Legend)
 from bokeh.plotting import figure
 from bokeh.palettes import Viridis256
-from bokeh.transform import transform
-from bokeh.models.ranges import Range1d
-from datetime import timedelta
+
 
 from sharp_ratio import sharp_grid, strategy_return
-from library.constants import DEVICE
 from library.dataset import get_pytorch_datataset
-from library.gan import Generator as TCN_Generator
-from library.gan_LSTM import Generator as LSTM_Generator
-from library.gan_GRU import Generator as GRU_Generator
-from library.gan_train_loop import load_gan
-from library.generation import generate_fake_returns as TCN_generate_fake_returns
-from library.generation_LSTM import generate_fake_returns as LSTM_generate_fake_returns
-from library.generation_GRU import generate_fake_returns as GRU_generate_fake_returns
+
 
 from fid import calculate_fid
 
@@ -135,67 +126,6 @@ def create_stock_plot(title, source, split=False):
 
 data = np.array([[i * j for j in range(9)] for i in range(6)])
 
-
-
-
-# def create_heatmap(title, source, color_mapper=None):
-#     # Размеры данных
-#     n_x = len(N_START_VALUES)
-#     n_y = len(N_FINISH_VALUES)
-#
-#     # Размер ячейки (делаем квадратные ячейки)
-#     cell_size = min(
-#         (max(N_START_VALUES) - min(N_START_VALUES)) / n_x,
-#         (max(N_FINISH_VALUES) - min(N_FINISH_VALUES)) / n_y
-#     ) * 0.9  # 0.9 для небольшого отступа между ячейками
-#
-#     # Создаем цветовую карту если не передана
-#     if color_mapper is None:
-#         values = source.data['values']
-#         color_mapper = LinearColorMapper(
-#             palette=Viridis256,
-#             low=min(values),
-#             high=max(values)  # Исправлено: используем high вместо max
-#         )
-#
-#     # Создаем фигуру
-#     p = figure(
-#         title=title.upper(),
-#         x_range=(min(N_START_VALUES) - cell_size / 2, max(N_START_VALUES) + cell_size / 2),
-#         y_range=(min(N_FINISH_VALUES) - cell_size / 2, max(N_FINISH_VALUES) + cell_size / 2),
-#         tools="hover",
-#         toolbar_location=None,
-#         width=600,
-#         height=400,
-#         x_axis_label='n_start (days)',
-#         y_axis_label='n_finish (days)'
-#     )
-#     p.title.text_font_size = '14pt'
-#
-#     # Рисуем квадратные ячейки без отступов
-#     p.rect(
-#         x='x', y='y',
-#         width=cell_size,
-#         height=cell_size,
-#         source=source,
-#         fill_color={'field': 'values', 'transform': color_mapper},
-#         line_color=None
-#     )
-#
-#     # Настройка осей
-#     p.xaxis.ticker = N_START_VALUES
-#     p.yaxis.ticker = N_FINISH_VALUES
-#     p.grid.visible = False
-#     p.outline_line_color = None
-#
-#     # Настройка подсказок
-#     p.hover.tooltips = [
-#         ("Parameters", "@x days / @y days"),
-#         ("Sharpe Ratio", "@values{0.3f}")
-#     ]
-#
-#     return p, color_mapper
-
 # Определяем размеры данных
 NUM_ROWS = len(N_START_VALUES)
 NUM_COLS = len(N_FINISH_VALUES)
@@ -213,9 +143,9 @@ xx, yy = np.meshgrid(x, y)
 x_offset = xx.flatten() + 0.5
 y_offset = yy.flatten() + 0.5
 
-source = ColumnDataSource(data=dict(x=x_offset, y=y_offset, z=[d for d in data]))
+# source = ColumnDataSource(data=dict(x=x_offset, y=y_offset, z=[d for d in data]))
 
-def create_heatmap(data, x_ticks=N_FINISH_VALUES, y_ticks=N_START_VALUES, source=None, title="title", color_mapper=None):
+def create_heatmap(x_ticks=N_FINISH_VALUES, y_ticks=N_START_VALUES, source=None, title="title", color_mapper=None):
 
     # Вычисляем width и height для сохранения квадратности
     base_size = 450  # Примерный базовый размер
@@ -297,17 +227,10 @@ common_color_mapper = LinearColorMapper(
 )
 
 # Создаем хитмэпы с общей цветовой шкалой
-heatmap_real = create_heatmap(data=heatmap_real_values, title="On Real Data (Train Period)", source=heatmap_real_source, color_mapper=common_color_mapper)
-heatmap_generated = create_heatmap(data=heatmap_generated_values, title="On Generated Data", source=heatmap_generated_source, color_mapper=common_color_mapper)
+heatmap_real = create_heatmap(title="On Real Data (Train Period)", source=heatmap_real_source, color_mapper=common_color_mapper)
+heatmap_generated = create_heatmap(title="On Generated Data", source=heatmap_generated_source, color_mapper=common_color_mapper)
 
-# # Создание цветовой шкалы (color bar) - ОДИН для обоих графиков
-# color_bar = ColorBar(color_mapper=common_color_mapper, ticker=FixedTicker(),
-#                      label_standoff=12)
-#
-#
-# # Добавление цветовой шкалы на график - добавляем к ОДНОМУ из графиков
-# heatmap_real.add_layout(color_bar, 'right')  # Например, добавляем к heatmap_real
-# heatmap_generated.add_layout(color_bar, 'right')
+
 
 # ========== Источники данных ==========
 real_source = ColumnDataSource(
@@ -330,7 +253,6 @@ def format_cfid(mean, std):
     if mean == 0 or std == 0:
         return f"{mean:.2e} ± {std:.2e}"
     order = -4
-    cur_order = int(np.floor(np.log10(abs(mean))))
     scaled_std = std * (10 ** -order)
     scaled_mean = mean * (10 ** -order)
     return f"{scaled_mean:.2f}e{order} ± {scaled_std:.3f}e{order}"
@@ -379,7 +301,6 @@ def get_optimal_params(heatmap_source, N_START_VALUES, N_FINISH_VALUES):
   return optimal_params
 
 
-# Применение функции к вашим данным:
 optimal_params_train = get_optimal_params(heatmap_real_source, N_START_VALUES, N_FINISH_VALUES)
 optimal_params_generated = get_optimal_params(heatmap_generated_source, N_START_VALUES, N_FINISH_VALUES)
 
@@ -457,14 +378,7 @@ strategy_plot = figure(
     x_axis_type='datetime',
     active_scroll="wheel_zoom"
 )
-strategy_plot.title.text_font_size = '14pt'  # Правильный способ установки размера шрифта заголовка
-
-# hover = HoverTool(
-#     tooltips=[("Date", "@x{%F}"), ("Return", "@$name{0.2f}")],
-#     formatters={"@x": "datetime"},
-#     mode='vline'
-# )
-# strategy_plot.add_tools(hover)
+strategy_plot.title.text_font_size = '14pt'
 
 strategy_plot.line('x', 'train', source=strategy_source, line_width=2,
                    name="train", legend_label="Optimized on real data", color=LINE_COLORS[0])
@@ -476,38 +390,6 @@ strategy_plot.line('x', 'custom', source=strategy_source, line_width=2,
 strategy_plot.legend.location = "bottom_left"
 strategy_plot.legend.click_policy = "hide"
 strategy_plot.legend.label_text_font_size = "10pt"
-
-# # ========== Кнопки масштабирования ==========
-# zoom_buttons = RadioButtonGroup(
-#     labels=["1M", "3M", "6M", "1Y", "ALL"],
-#     active=4,
-#     width=450,
-#     styles={'margin': '10px auto'}
-# )
-
-
-# def zoom_callback(attr, old, new):
-#     end_date = test_data.index[-1]
-#     periods = [30, 90, 180, 365, None]
-#
-#     if periods[new] is None:
-#         start_date = test_data.index[0]
-#     else:
-#         start_date = end_date - timedelta(days=periods[new])
-#
-#     strategy_plot.x_range.start = start_date
-#     strategy_plot.x_range.end = end_date
-#
-#     # Автомасштабирование по Y
-#     active_strategy = ['train', 'fake', 'custom'][strategy_selector.active]
-#     visible_data = [y for x, y in zip(strategy_source.data['x'],
-#                                       strategy_source.data[active_strategy])]
-#     if visible_data:
-#         y_padding = (max(visible_data) - min(visible_data)) * 0.1
-#         strategy_plot.y_range.start = min(visible_data) - y_padding
-#         strategy_plot.y_range.end = max(visible_data) + y_padding
-#
-# zoom_buttons.on_change('active', zoom_callback)
 
     # ========== Callback-функции ==========
 
@@ -633,8 +515,6 @@ params_block = row(
 )
 
 strategy_block = column(
-    # strategy_selector,
-    # zoom_buttons,
     strategy_plot,
     align="center",
     styles={'margin': '30px 0'}
