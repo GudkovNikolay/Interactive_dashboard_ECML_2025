@@ -37,7 +37,7 @@ different parameters <strong>n finish</strong> and <strong>n start</strong>
  (Gated Recurrent Unit)</strong>.
  </br> </br>
 
-The momentum strategy is based on identifying trends in asset prices, 
+<strong>The momentum strategy</strong> is based on identifying trends in asset prices, 
 buying assets that have shown upward momentum and selling those that have 
 shown downward momentum. The parameters of strategy <strong>n start</strong> 
 and <strong>n finish</strong> define the observation window for calculating 
