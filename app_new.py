@@ -329,9 +329,11 @@ cfid_values = {
 def format_cfid(mean, std):
     if mean == 0 or std == 0:
         return f"{mean:.2e} ± {std:.2e}"
-    order = int(np.floor(np.log10(abs(mean))))
+    order = -4
+    cur_order = int(np.floor(np.log10(abs(mean))))
     scaled_std = std * (10 ** -order)
-    return f"{mean:.2e} ± {scaled_std:.2f}e{order}"
+    scaled_mean = mean * (10 ** -order)
+    return f"{scaled_mean:.2f}e{order} ± {scaled_std:.3f}e{order}"
 
 
 cfid_label = Div(text="<b>Generation Quality (C-FID)</b>",
