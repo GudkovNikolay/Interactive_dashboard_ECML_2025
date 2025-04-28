@@ -4,7 +4,7 @@ bokeh serve --show dashboard.py
 
 # Content
 * dashboard.py - main file with interactive tool layout
-* Library - Used for generation and strategy analysis. More details at https://github.com/Maksim787/gan-moex
+* Library - Used for generation and strategy analysis, including GAN architectures 
 * data - MOEX closing prices
 * TSGBench - Used for evaluating data generation quality. More details at https://github.com/YihaoAng/TSGBench
 * cfid.ipynb - notebook with C-FID calculation for generated data
