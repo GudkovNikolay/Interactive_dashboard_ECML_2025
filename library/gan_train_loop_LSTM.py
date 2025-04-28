@@ -13,7 +13,7 @@ from library.constants import DEVICE, N_ASSETS, WINDOW_SIZE
 from correlations import plot_correlation_matrix
 from generation_LSTM import generate_samples
 
-SAVE_PATH = Path('models/')
+SAVE_PATH = Path('library/models/')
 SAVE_PATH.mkdir(exist_ok=True)
 
 loss_fn = nn.BCELoss()

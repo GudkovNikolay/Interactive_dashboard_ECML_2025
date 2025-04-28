@@ -14,7 +14,7 @@ from library.generation_GRU import generate_samples, _normalize_returns
 
 from tqdm.auto import tqdm
 
-SAVE_PATH = Path('models/')
+SAVE_PATH = Path('library/models/')
 SAVE_PATH.mkdir(exist_ok=True)
 
 loss_fn = nn.BCELoss()
