@@ -9,7 +9,7 @@ from bokeh.plotting import figure
 from bokeh.palettes import Viridis256
 
 
-from sharp_ratio import sharp_grid, strategy_return
+from strategy import sharp_grid, strategy_return
 from library.dataset import get_pytorch_datataset
 
 # ========== Configuration ==========
