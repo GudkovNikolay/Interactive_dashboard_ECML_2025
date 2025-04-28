@@ -33,42 +33,32 @@ LINE_COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
 ARCHITECTURES = ['TCN', 'LSTM', 'GRU']
 
 # ========== Заголовок и описание ==========
-'''
-dashboard_title = Div(text="""
-<h1 style='text-align: center; margin-bottom: 20px; font-size: 24px;'>
-Interactive Tool for Momentum Strategy Evaluation with GANs
-</h1>
-<p style='text-align: center; margin-bottom: 30px; max-width: 800px; margin-left: auto; margin-right: auto;'>
-This dashboard compares the quality of cumulative log-return generations for five Moscow Exchange stocks 
-and evaluates Momentum strategy performance. The GAN architectures (TCN, LSTM, GRU) generate synthetic 
-price series used for strategy optimization. Momentum parameters (n_start, n_finish) define the lookback 
-window for calculating the momentum signal.
-</p>
-""", styles={'margin': '20px 0 0 150px'})
-'''
-
 dashboard_title = Div(text="""
 <h1 style='text-align: center; margin-bottom: 20px; font-size: 24px;'>
 Interactive Dashboard for Momentum Strategy Evaluation with GANs
 </h1>
 <p style='text-align: center; margin-bottom: 30px; max-width: 800px; margin-left: auto; margin-right: auto;'>
+<strong>This dashboard compares the quality of generated cumulative log 
+returns for five stocks from the Moscow Exchange, evaluated using the 
+C-FID metric.</strong> It also shows how momentum strategy performs with 
+different parameters <strong>n finish</strong> and <strong>n start</strong>
+ on train period of real data and on generated data, which allows to compare 
+ optimal parameter sets, in terms of <strong>Sharpe Ratio</strong>. The GAN 
+ architectures employed—<strong>TCN (Temporal Convolutional Network)</strong>, 
+ <strong>LSTM (Long Short-Term Memory)</strong>, and <strong>GRU 
+ (Gated Recurrent Unit)</strong>.
+ </br> </br>
 
-This dashboard compares the quality of <b>generated cumulative log returns</b> for five stocks from the Moscow Exchange, 
-evaluated using the C-FID metric. It also show shows how momentum strategy performs with different parameters 
-nfinish and nstart on train period of real data and on generated data, which allows to compare optimal parameter sets,
- in terms of Sharpe Ratio.
-The GAN architectures employed—TCN (Temporal Convolutional Network), 
-LSTM (Long Short-Term Memory), 
-and GRU (Gated Recurrent Unit).
-<br><br>
 The momentum strategy is based on identifying trends in asset prices, 
-buying assets that have shown upward momentum and selling those that have shown downward momentum. 
-The parameters of strategy n start and n finish define the observation window for calculating the momentum signal.
-The graph in the bottom of the dashboard shows strategy performance on the test period, depending on the parameters
-set. There are three plots: strategy utilising parameters optimized with train period of real data (fixed),
-strategy utilising parameters optimized with generated data (depends on current generation),
-strategy utilising parameters optimized chosen by user. This graph
-allow to asses parameters impact on strategy performance. 
+buying assets that have shown upward momentum and selling those that have 
+shown downward momentum. The parameters of strategy <strong>n start</strong> 
+and <strong>n finish</strong> define the observation window for calculating 
+the momentum signal. The graph in the bottom of the dashboard shows strategy 
+performance on the test period, depending on the parameters set. There are 
+three plots: strategy utilising parameters optimized with train period of 
+real data (fixed), strategy utilising parameters optimized with generated 
+data (depends on current generation), strategy utilising parameters optimized 
+chosen by user. This graph allows to assess parameters impact on strategy performance.
 </p>
 """, styles={'margin': '20px 0 0 150px'})
 
