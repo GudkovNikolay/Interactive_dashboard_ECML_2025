@@ -261,7 +261,7 @@ cfid_value = Div(text=format_cfid(cfid_values['TCN']['mean'], cfid_values['TCN']
                      'font-size': '11pt'
                  })
 
-regenerate_button = Button(label="⟳ New Generation", button_type="default", width=150,
+regenerate_button = Button(label="New Generation", button_type="default", width=150,
                            styles={'margin-left': '10px', 'margin-top': '37px', 'font-size': '12pt'})
 
 # ========== Strategy parameters ==========

@@ -1,10 +1,25 @@
-# Launch dashboard
+# Interactive Dashboard for Momentum Strategy Evaluation with GANs 
+
+## What it is about?
+<strong>This dashboard compares the quality of generated cumulative log 
+returns for five stocks from the Moscow Exchange, evaluated using the 
+C-FID metric.</strong> It also shows how momentum strategy performs with 
+different parameters <strong>n finish</strong> and <strong>n start</strong>
+ on train period of real data and on generated data, which allows to compare 
+ optimal parameter sets, in terms of <strong>Sharpe Ratio</strong>. The GAN 
+ architectures employed—<strong>TCN (Temporal Convolutional Network)</strong>, 
+ <strong>LSTM (Long Short-Term Memory)</strong>, and <strong>GRU 
+ (Gated Recurrent Unit)</strong>.
+
+## Launch dashboard
 
 bokeh serve --show dashboard.py
 
-# Content
+## Content
 * dashboard.py - main file with interactive tool layout
-* Library - Used for generation and strategy analysis, including GAN architectures 
+* Library - package, which provides tools for training 
+Generative Adversarial Networks (GANs) with various architectures and strategy analysis. 
+Based on https://github.com/Maksim787/gan-moex
 * data - MOEX closing prices
 * TSGBench - Used for evaluating data generation quality. More details at https://github.com/YihaoAng/TSGBench
 * cfid.ipynb - notebook with C-FID calculation for generated data
