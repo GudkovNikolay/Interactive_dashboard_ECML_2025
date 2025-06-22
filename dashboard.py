@@ -192,7 +192,7 @@ def create_heatmap(x_ticks=N_FINISH_VALUES, y_ticks=N_START_VALUES, source=None,
 
 
 
-heatmap_real_values = sharp_grid(df_returns_real).flatten()
+heatmap_real_values = sharp_grid(train_data).flatten()
 heatmap_generated_values = sharp_grid(generated_returns['TCN'][GENERATIONS_COUNTER]).flatten()#heatmap_data_generated['TCN'].flatten()
 
 heatmap_real_source = ColumnDataSource(data={
